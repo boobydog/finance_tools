@@ -1,3 +1,22 @@
+# MySQL secrets (keep .example templates as setup documentation)
+mysql/secrets/*
+!mysql/secrets/*.example
+
+# ローカルCLI用の認証情報入りファイル (実ファイルは各自作成。テンプレートのみ追跡)
+mysql/client.cnf
+!mysql/client.cnf.example
+
+# Downloaded CSV data
+data/
+
+# Persistent batch logs (keep the directory itself)
+logs/*
+!logs/.gitkeep
+
+# DB<->JSON同期のscreening_rules.json (keep the directory itself)
+data/screening/*
+!data/screening/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -149,6 +168,7 @@ activemq-data/
 
 # Environments
 .env
+!.env.example
 .envrc
 .venv
 env/

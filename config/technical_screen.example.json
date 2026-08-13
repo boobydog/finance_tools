@@ -1,0 +1,37 @@
+{
+  "symbols": ["4587.T"],
+  "include_nikkei225": true,
+  "benchmark_symbol": "^N225",
+  "history_period": "2y",
+  "scoring": {
+    "stage2": {
+      "points": 30,
+      "sma_short_period": 50,
+      "sma_long_period": 200,
+      "sma_long_trend_lookback_days": 20
+    },
+    "relative_strength": {
+      "points": 25,
+      "lookback_days": 126,
+      "threshold": 1.3
+    },
+    "volume_surge": {
+      "points": 20,
+      "average_period": 20,
+      "ratio_threshold": 1.5
+    },
+    "rsi_zone": {
+      "points": 15,
+      "period": 14,
+      "comfort_low": 45,
+      "comfort_high": 65,
+      "overbought_threshold": 70,
+      "overbought_penalty": -10
+    },
+    "vcp_or_high": {
+      "points": 10,
+      "high_52w_ratio_threshold": 0.95,
+      "volatility_lookback_days": 10
+    }
+  }
+}
