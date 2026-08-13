@@ -1,0 +1,170 @@
+// ============================================================================
+// screen コマンド用 JSON 設定ファイルの全パラメータ リファレンス
+// ============================================================================
+// このファイルは設定可能な全項目を説明するためのドキュメントです(コメント付き)。
+// JSON標準はコメントをサポートしないため、このファイル自体を
+// `python src/main.py screen <path>` にはそのまま渡せません。
+// 実際に使う設定ファイルは screen_conditions.example.json のように
+// コメントなしのJSONとして作成してください。
+{
+  // --------------------------------------------------------------------------
+  // ■ predefined : 定義済みクエリを使う場合に指定
+  // --------------------------------------------------------------------------
+  // Yahoo!ファイナンスが用意した定義済みスクリーニング条件をそのまま利用する。
+  // 指定した場合、下記の quote_type / query は無視される。
+  //
+  // 選択可能な値 (yf.PREDEFINED_SCREENER_QUERIES.keys()):
+  //   [株式]
+  //     "aggressive_small_caps"      値上がり率の高い小型株
+  //     "day_gainers"                本日の値上がり率上位
+  //     "day_losers"                 本日の値下がり率上位
+  //     "growth_technology_stocks"   成長中のテクノロジー株
+  //     "most_actives"               出来高上位
+  //     "most_shorted_stocks"        空売り比率上位
+  //     "small_cap_gainers"          小型の値上がり株
+  //     "undervalued_growth_stocks"  割安な成長株
+  //     "undervalued_large_caps"     割安な大型株
+  //   [投資信託]
+  //     "conservative_foreign_funds" / "high_yield_bond" / "portfolio_anchors" /
+  //     "solid_large_growth_funds" / "solid_midcap_growth_funds" / "top_mutual_funds"
+  //   [ETF]
+  //     "top_etfs_us" / "top_performing_etfs" / "technology_etfs" / "bond_etfs"
+  "predefined": "day_gainers",
+
+  // --------------------------------------------------------------------------
+  // ■ quote_type : カスタム条件を使う場合の検索対象種別
+  // --------------------------------------------------------------------------
+  // predefined を指定しない場合に使用。省略時は "equity"。
+  //   "equity" : 個別株式
+  //   "fund"   : 投資信託
+  //   "etf"    : ETF
+  "quote_type": "equity",
+
+  // --------------------------------------------------------------------------
+  // ■ query : カスタム条件本体(再帰構造)
+  // --------------------------------------------------------------------------
+  // 各ノードは "operator" を持ち、種類によって以下のいずれかの形をとる。
+  //   ・論理演算子 ("and" / "or")
+  //       -> "conditions" に子条件(この構造自体)の配列を指定する
+  //   ・比較演算子 ("eq" / "gt" / "gte" / "lt" / "lte" / "btwn" / "is-in")
+  //       -> "field" と "value" を指定する葉ノードになる
+  "query": {
+    "operator": "and",
+    "conditions": [
+      {
+        // "eq" : field が value と完全一致する
+        "operator": "eq",
+        // 対象フィールド名。使用可能なフィールドは quote_type ごとに異なる。
+        // equity(株式)の代表的なフィールド:
+        //   eq_fields (文字列の完全一致用)
+        //     "sector"      業種セクター。値は下記11種のいずれか:
+        //                   "Basic Materials" / "Communication Services" /
+        //                   "Consumer Cyclical" / "Consumer Defensive" / "Energy" /
+        //                   "Financial Services" / "Healthcare" / "Industrials" /
+        //                   "Real Estate" / "Technology" / "Utilities"
+        //     "industry"    業界(sectorよりさらに細かい分類)
+        //     "exchange"    取引所コード。例: "NMS"(NASDAQ), "NYQ"(NYSE),
+        //                   "TYO"(東証) など
+        //     "region"      国・地域コード。例: "us", "jp", "gb" など (ISO国コード)
+        //     "peer_group"  ピアグループ(競合銘柄群)
+        //   price (価格関連)
+        //     "intradayprice"             現在値
+        //     "intradaymarketcap"         時価総額
+        //     "percentchange"             前日比騰落率(%)
+        //     "fiftytwowkpercentchange"   52週騰落率(%)
+        //   trading (出来高・変動性)
+        //     "dayvolume"        当日出来高
+        //     "eodvolume"        終値時点の出来高
+        //     "avgdailyvol3m"    3ヶ月平均出来高
+        //     "beta"             ベータ値
+        //   short_interest (空売り関連)
+        //     "short_percentage_of_float.value" など
+        //   valuation (バリュエーション)
+        //     "peratio.lasttwelvemonths"    PER(実績)
+        //     "pegratio_5y"                 PEGレシオ(5年)
+        //     "pricebookratio.quarterly"    PBR(四半期)
+        //   profitability (収益性)
+        //     "returnonequity.lasttwelvemonths"  ROE(実績)
+        //     "returnonassets.lasttwelvemonths"  ROA(実績)
+        //   leverage (財務レバレッジ)
+        //     "totaldebtequity.lasttwelvemonths" 負債比率(実績)
+        //   liquidity (流動性)
+        //     "currentratio.lasttwelvemonths"    流動比率(実績)
+        //   income_statement / balance_sheet / cash_flow (財務諸表項目)
+        //     "epsgrowth.lasttwelvemonths"       EPS成長率(実績)
+        //     "totalrevenue.lasttwelvemonths"    売上高(実績) など
+        //   esg (ESG評価)
+        //     "esg_score" / "environmental_score" / "social_score" / "governance_score"
+        //
+        // fund/etf の場合は "categoryname" / "performanceratingoverall" /
+        // "initialinvestment" / "annualreportnetexpenseratio" などが使用可能。
+        "field": "sector",
+        // 比較する値。
+        //   eq / gt / gte / lt / lte : 単一の値 (文字列 or 数値)
+        //   btwn                     : [下限, 上限] の配列
+        //   is-in                    : 複数値の配列
+        "value": "Technology"
+      },
+      {
+        // "gt"  : field が value より大きい
+        // "gte" : field が value 以上
+        // "lt"  : field が value より小さい
+        // "lte" : field が value 以下
+        "operator": "gte",
+        "field": "intradaymarketcap",
+        "value": 2000000000
+      },
+      {
+        // "is-in" : field が value配列のいずれかに一致する (OR条件のショートハンド)
+        "operator": "is-in",
+        "field": "exchange",
+        "value": ["NMS", "NYQ"]
+      },
+      {
+        // "btwn" : field が value=[下限, 上限] の範囲内
+        "operator": "btwn",
+        "field": "peratio.lasttwelvemonths",
+        "value": [0, 20]
+      },
+      {
+        // 論理演算子はネスト可能。
+        // 例: (region == "us") または (region == "jp")
+        "operator": "or",
+        "conditions": [
+          { "operator": "eq", "field": "region", "value": "us" },
+          { "operator": "eq", "field": "region", "value": "jp" }
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // ■ 取得件数・ソート・ページングに関するパラメータ
+  // --------------------------------------------------------------------------
+  // predefined / quote_type+query のどちらの方式でも共通で使用可能。
+
+  // 取得件数(カスタムクエリ用)。既定100、最大250 (Yahoo仕様)。
+  // predefined を使う場合は代わりに count を使うこと。
+  "size": 25,
+
+  // 取得件数(定義済みクエリ用)。既定25、最大250 (Yahoo仕様)。
+  // カスタムクエリの場合は代わりに size を使うこと。
+  "count": 25,
+
+  // 検索結果の取得開始位置(ページング用)。既定0。
+  "offset": 0,
+
+  // ソート対象のフィールド名。省略時は "ticker"。
+  // 例: "percentchange" / "dayvolume" / "intradaymarketcap" など。
+  // (使用可能な値は上記 query.field と同じ体系)
+  "sort_field": "intradaymarketcap",
+
+  // 昇順ソートするかどうか。true=昇順 / false=降順。省略時は false(降順)。
+  "sort_asc": false,
+
+  // Yahoo!ファイナンスのユーザーID。省略時は空文字。通常は指定不要。
+  "user_id": "",
+
+  // user_id の種別。省略時は "guid"。通常は指定不要。
+  "user_id_type": "guid"
+}

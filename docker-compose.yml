@@ -1,0 +1,97 @@
+services:
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      ENABLE_AUTH: "false"
+      NEXTAUTH_URL: http://localhost:3000
+      # 認証情報は .env (gitignore対象、.env.exampleを参照して作成) から読み込む
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # ブラウザから直接叩くため、コンテナ間ホスト名ではなくlocalhostを指定する
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+  api:
+    build: ./batch
+    command: python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./batch/api:/app/api
+      - ./batch/scripts:/app/scripts
+      - ./batch/sql:/app/sql
+      - ./batch/requirements.txt:/app/requirements.txt
+      - ./data/screening:/app/data/screening
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: finance_tools
+      DB_NAME: finance_tools
+      DB_PASSWORD_FILE: /run/secrets/mysql_password
+      CORS_ALLOW_ORIGINS: http://localhost:3000
+      SCREENING_RULES_JSON_PATH: /app/data/screening/screening_rules.json
+    secrets:
+      - mysql_password
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  app:
+    build: ./batch
+    volumes:
+      - ./batch/main.py:/app/main.py
+      - ./batch/scripts:/app/scripts
+      - ./batch/sql:/app/sql
+      - ./batch/requirements.txt:/app/requirements.txt
+      - ./config:/app/config:ro
+      - ./mysql/client.cnf:/root/.my.cnf:ro
+      - ./logs:/app/logs
+      - ./data/screening:/app/data/screening
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: finance_tools
+      DB_NAME: finance_tools
+      DB_PASSWORD_FILE: /run/secrets/mysql_password
+      SCREENING_RULES_JSON_PATH: /app/data/screening/screening_rules.json
+    secrets:
+      - mysql_password
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.4
+    # DB名/ユーザー名は非機密情報のためここに記載 (mysql/client.cnf の値と一致させること)
+    # パスワードは secrets 経由で /run/secrets/ 配下に渡す
+    environment:
+      MYSQL_DATABASE: finance_tools
+      MYSQL_USER: finance_tools
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+    secrets:
+      - mysql_root_password
+      - mysql_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d/server.cnf:/etc/mysql/conf.d/server.cnf:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  mysql_data:
+
+secrets:
+  mysql_root_password:
+    file: ./mysql/secrets/root_password.txt
+  mysql_password:
+    file: ./mysql/secrets/password.txt

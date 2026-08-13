@@ -1,0 +1,14 @@
+{
+  "quote_type": "equity",
+  "size": 25,
+  "sort_field": "intradaymarketcap",
+  "sort_asc": false,
+  "query": {
+    "operator": "and",
+    "conditions": [
+      { "operator": "eq", "field": "sector", "value": "Technology" },
+      { "operator": "gte", "field": "intradaymarketcap", "value": 2000000000 },
+      { "operator": "is-in", "field": "exchange", "value": ["NMS", "NYQ"] }
+    ]
+  }
+}

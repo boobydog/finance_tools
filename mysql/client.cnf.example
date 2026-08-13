@@ -1,0 +1,6 @@
+[client]
+host = db
+port = 3306
+user = finance_tools
+password = change-me-app-password
+database = finance_tools

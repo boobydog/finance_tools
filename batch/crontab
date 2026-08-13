@@ -1,0 +1,14 @@
+PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# 5分ごとにjpx-importを起動する。
+# 実際に処理を行うかどうか(新規実行/リトライ待機/スキップ)はbatch_logsの状態を見て
+# scripts.batch_logger側で判定するため、ここでは単に頻度高く叩くだけでよい。
+*/5 * * * * root cd /app && python main.py jpx-import >> /app/logs/jpx_import.log 2>&1
+
+# 基礎指標(PER/PBR/ROE等)は決算でしか変わらないため1日1回で十分。
+# 実行要否はbatch_logsの状態を見てscripts.batch_logger側で判定するため、
+# ここでは頻度高く(1時間おき)叩くだけでよい。
+0 * * * * root cd /app && python main.py fetch-fundamentals >> /app/logs/fetch_fundamentals.log 2>&1
+
+# 決算発表日・その翌日にあたる銘柄だけを個別に更新する(数時間おき)。
+0 */6 * * * root cd /app && python main.py fetch-earnings-day-fundamentals >> /app/logs/fetch_earnings_day_fundamentals.log 2>&1

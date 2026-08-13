@@ -1,0 +1,8 @@
+yfinance
+xlrd
+lxml
+SQLAlchemy
+pymysql
+TA-Lib
+fastapi
+uvicorn
