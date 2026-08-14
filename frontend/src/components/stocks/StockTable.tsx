@@ -176,6 +176,7 @@ const columns: GridColDef<StockRow>[] = [
         tickerSymbol={row.tickerSymbol}
         stockName={row.name}
         currentStatus={row.status}
+        currentPrice={row.liveCurrentPrice ?? row.latestClose}
         size="small"
       />
     ),

@@ -18,6 +18,18 @@ def get_int_setting(engine: Engine, key: str, default: int) -> int:
     return int(row["setting_value"]) if row else default
 
 
+def get_float_setting(engine: Engine, key: str, default: float) -> float:
+    with engine.connect() as conn:
+        row = conn.execute(text(load_sql("select_app_setting.sql")), {"setting_key": key}).mappings().first()
+    return float(row["setting_value"]) if row else default
+
+
+def get_str_setting(engine: Engine, key: str, default: str) -> str:
+    with engine.connect() as conn:
+        row = conn.execute(text(load_sql("select_app_setting.sql")), {"setting_key": key}).mappings().first()
+    return row["setting_value"] if row else default
+
+
 def set_setting(engine: Engine, key: str, value: str | int) -> None:
     with engine.begin() as conn:
         conn.execute(

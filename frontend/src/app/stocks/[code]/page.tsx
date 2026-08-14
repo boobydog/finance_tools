@@ -27,6 +27,7 @@ import { StockPriceChart } from "@/components/charts/StockPriceChart";
 import { StatusActions } from "@/components/stocks/StatusActions";
 import { StatusChip } from "@/components/stocks/StatusChip";
 import { TradeHistoryPanel } from "@/components/stocks/TradeHistoryPanel";
+import { ExitJudgmentDetail } from "@/components/stocks/ExitJudgmentDetail";
 import { priceColor } from "@/lib/theme";
 import type { PriceHistoryInterval } from "@/types";
 import { classifyTrade, TARGET_PRICE_LOGIC_LABEL } from "@/lib/tradeSignals";
@@ -49,10 +50,12 @@ export default function StockDetailPage() {
   const { data: entrySignals } = useEntrySignals();
   const { data: lossCutSignals } = useLossCutSignals();
   const { data: profitTakingSignals } = useProfitTakingSignals();
+  const lossCut = lossCutSignals?.find((s) => s.tickerSymbol === tickerSymbol);
+  const profitTaking = profitTakingSignals?.find((s) => s.tickerSymbol === tickerSymbol);
   const tradeVerdict = classifyTrade(
     entrySignals?.find((s) => s.tickerSymbol === tickerSymbol),
-    lossCutSignals?.find((s) => s.tickerSymbol === tickerSymbol),
-    profitTakingSignals?.find((s) => s.tickerSymbol === tickerSymbol)
+    lossCut,
+    profitTaking
   );
 
   if (stockLoading) {
@@ -212,8 +215,22 @@ export default function StockDetailPage() {
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
           ステータス変更
         </Typography>
-        <StatusActions tickerSymbol={stock.tickerSymbol} stockName={stock.name} currentStatus={stock.status} />
+        <StatusActions
+          tickerSymbol={stock.tickerSymbol}
+          stockName={stock.name}
+          currentStatus={stock.status}
+          currentPrice={liveQuote?.currentPrice ?? stock.latestClose}
+        />
       </Paper>
+
+      {stock.status === "holding" && (lossCut || profitTaking) && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+            損切り・利確判定
+          </Typography>
+          <ExitJudgmentDetail lossCut={lossCut} profitTaking={profitTaking} />
+        </Paper>
+      )}
 
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>

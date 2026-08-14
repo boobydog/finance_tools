@@ -1,17 +1,26 @@
 "use client";
 
-import { List, ListItem, ListItemText, Typography, Chip, Stack, Box, Divider } from "@mui/material";
+import { List, ListItem, ListItemText, ListItemSecondaryAction, Typography, Chip, Stack, Box, Divider, IconButton } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { useTradeHistory } from "@/hooks/useScreening";
+import { useDeleteTrade } from "@/hooks/useStocks";
+import type { AccountType } from "@/types";
 
 const ACTION_META = {
   buy: { label: "購入", color: "success" as const },
   sell: { label: "売却", color: "error" as const },
 };
 
+const ACCOUNT_TYPE_SHORT_LABEL: Record<AccountType, string> = {
+  taxable: "特定/一般",
+  nisa: "NISA",
+};
+
 // 「なぜその株を買った/避けたか」の振り返りができるよう、根拠にした
 // スクリーニンググループとメモを含めて売買履歴を表示する。
 export function TradeHistoryPanel({ tickerSymbol }: { tickerSymbol: string }) {
   const { data: trades, isLoading } = useTradeHistory(tickerSymbol);
+  const deleteTrade = useDeleteTrade();
 
   if (isLoading) return null;
 
@@ -28,7 +37,7 @@ export function TradeHistoryPanel({ tickerSymbol }: { tickerSymbol: string }) {
       {trades.map((trade, index) => (
         <Box key={trade.tradeId}>
           {index > 0 && <Divider component="li" />}
-          <ListItem disablePadding sx={{ py: 1 }}>
+          <ListItem disablePadding sx={{ py: 1, pr: 5 }}>
             <ListItemText
               primary={
                 <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
@@ -43,6 +52,7 @@ export function TradeHistoryPanel({ tickerSymbol }: { tickerSymbol: string }) {
                   {trade.screeningGroupName && (
                     <Chip label={trade.screeningGroupName} size="small" variant="outlined" />
                   )}
+                  <Chip label={ACCOUNT_TYPE_SHORT_LABEL[trade.accountType]} size="small" variant="outlined" />
                 </Stack>
               }
               secondary={
@@ -52,6 +62,17 @@ export function TradeHistoryPanel({ tickerSymbol }: { tickerSymbol: string }) {
                 </>
               }
             />
+            <ListItemSecondaryAction>
+              <IconButton
+                size="small"
+                edge="end"
+                aria-label="削除"
+                disabled={deleteTrade.isPending}
+                onClick={() => deleteTrade.mutate({ tradeId: trade.tradeId, tickerSymbol })}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </ListItemSecondaryAction>
           </ListItem>
         </Box>
       ))}

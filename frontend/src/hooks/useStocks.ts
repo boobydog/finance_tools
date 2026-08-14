@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTrade,
+  deleteTrade,
   fetchEntrySignals,
   fetchLossCutSignals,
   fetchProfitTakingSignals,
@@ -75,6 +76,21 @@ export function useCreateTrade() {
       queryClient.invalidateQueries({ queryKey: stocksQueryKey });
       queryClient.invalidateQueries({ queryKey: stockQueryKey(tickerSymbol) });
       queryClient.invalidateQueries({ queryKey: ["tradeHistory"] });
+    },
+  });
+}
+
+export function useDeleteTrade() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tradeId }: { tradeId: number; tickerSymbol: string }) => deleteTrade(tradeId),
+    onSuccess: (_void, { tickerSymbol }) => {
+      queryClient.invalidateQueries({ queryKey: stocksQueryKey });
+      queryClient.invalidateQueries({ queryKey: stockQueryKey(tickerSymbol) });
+      queryClient.invalidateQueries({ queryKey: ["tradeHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["lossCutSignals"] });
+      queryClient.invalidateQueries({ queryKey: ["profitTakingSignals"] });
     },
   });
 }

@@ -1,39 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Stack,
-  CircularProgress,
-  Chip,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  LinearProgress,
-  Divider,
-} from "@mui/material";
+import { Box, Typography, Stack, CircularProgress, Chip, IconButton, Dialog, DialogTitle, DialogContent } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import Link from "next/link";
 import { useLossCutSignals, useProfitTakingSignals } from "@/hooks/useStocks";
 import type { LossCutSignal, ProfitTakingSignal } from "@/types";
-import {
-  classifyTrade,
-  exitReason,
-  lossCutDrawdownPercent,
-  lossCutScoreDiff,
-  isTrailingStopTriggered,
-  TARGET_PRICE_LOGIC_LABEL,
-  type TradeVerdict,
-} from "@/lib/tradeSignals";
+import { classifyTrade, exitReason, type TradeVerdict } from "@/lib/tradeSignals";
+import { ExitJudgmentDetail } from "@/components/stocks/ExitJudgmentDetail";
 
 type ExitRow = {
   tickerSymbol: string;
   name: string;
   sector: string | null;
   currentPrice: number | null;
+  purchasePrice: number | null;
+  quantity: number | null;
   lossCut?: LossCutSignal;
   profitTaking?: ProfitTakingSignal;
   verdict: TradeVerdict | null;
@@ -43,16 +26,18 @@ type ExitRow = {
 function rowHighlight(row: ExitRow): "error.main" | "warning.main" | "success.main" | undefined {
   if (row.verdict?.action === "loss_cut_a") return "error.main";
   if (row.verdict?.action === "loss_cut_b") return "warning.main";
+  if (row.verdict?.action === "holding_period_exit") return "warning.main";
   if (row.verdict?.action === "profit_taking") return "success.main";
   return undefined;
 }
 
-// 一覧の既定ソート用: 対応が急がれる順(即時売却 > 回避撤退検討 > 利確 > 該当なし)。
+// 一覧の既定ソート用: 対応が急がれる順(即時売却 > 回避撤退検討 > 保有期間満了 > 利確 > 該当なし)。
 function verdictRank(verdict: TradeVerdict | null): number {
   if (verdict?.action === "loss_cut_a") return 0;
   if (verdict?.action === "loss_cut_b") return 1;
-  if (verdict?.action === "profit_taking") return 2;
-  return 3;
+  if (verdict?.action === "holding_period_exit") return 2;
+  if (verdict?.action === "profit_taking") return 3;
+  return 4;
 }
 
 const columns: GridColDef<ExitRow>[] = [
@@ -90,16 +75,87 @@ const columns: GridColDef<ExitRow>[] = [
     ),
   },
   {
-    field: "currentPrice",
-    headerName: "現在値",
-    flex: 0.6,
-    minWidth: 100,
+    field: "quantity",
+    headerName: "保有数",
+    flex: 0.5,
+    minWidth: 90,
     type: "number",
     renderCell: ({ row }) => (
       <Typography variant="body2" sx={{ color: rowHighlight(row) }}>
-        {row.currentPrice != null ? row.currentPrice.toLocaleString() : "-"}
+        {row.quantity != null ? `${row.quantity.toLocaleString()}株` : "-"}
       </Typography>
     ),
+  },
+  {
+    field: "purchasePrice",
+    headerName: "購入時株価",
+    flex: 0.6,
+    minWidth: 110,
+    type: "number",
+    renderCell: ({ row }) => (
+      <Typography variant="body2" sx={{ color: rowHighlight(row) }}>
+        {row.purchasePrice != null ? row.purchasePrice.toLocaleString() : "-"}
+      </Typography>
+    ),
+  },
+  {
+    field: "currentPrice",
+    headerName: "現在値(購入時比)",
+    flex: 0.8,
+    minWidth: 140,
+    type: "number",
+    renderCell: ({ row }) => {
+      const diff =
+        row.currentPrice != null && row.purchasePrice != null ? row.currentPrice - row.purchasePrice : null;
+      return (
+        <Stack spacing={0} sx={{ justifyContent: "center", height: "100%", py: 0.5 }}>
+          <Typography variant="body2" sx={{ color: rowHighlight(row) }}>
+            {row.currentPrice != null ? row.currentPrice.toLocaleString() : "-"}
+          </Typography>
+          {diff !== null && (
+            <Typography
+              variant="caption"
+              sx={{ color: diff > 0 ? "success.main" : diff < 0 ? "error.main" : "text.secondary" }}
+            >
+              ({diff > 0 ? "+" : ""}
+              {diff.toLocaleString(undefined, { maximumFractionDigits: 1 })})
+            </Typography>
+          )}
+        </Stack>
+      );
+    },
+  },
+  {
+    field: "marketValue",
+    headerName: "評価額(購入時比)",
+    flex: 0.9,
+    minWidth: 160,
+    type: "number",
+    valueGetter: (_value, row) =>
+      row.currentPrice != null && row.quantity != null ? row.currentPrice * row.quantity : null,
+    renderCell: ({ row }) => {
+      const value = row.currentPrice != null && row.quantity != null ? row.currentPrice * row.quantity : null;
+      const diff =
+        row.currentPrice != null && row.purchasePrice != null && row.quantity != null
+          ? (row.currentPrice - row.purchasePrice) * row.quantity
+          : null;
+      return (
+        <Stack spacing={0} sx={{ justifyContent: "center", height: "100%", py: 0.5 }}>
+          <Typography variant="body2" sx={{ color: rowHighlight(row) }}>
+            {value != null ? `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}円` : "-"}
+          </Typography>
+          {diff !== null && (
+            <Typography
+              variant="caption"
+              sx={{ color: diff > 0 ? "success.main" : diff < 0 ? "error.main" : "text.secondary" }}
+            >
+              ({diff > 0 ? "+" : ""}
+              {diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}円)
+            </Typography>
+          )}
+        </Stack>
+      );
+    },
   },
   {
     field: "verdict",
@@ -142,20 +198,8 @@ const columns: GridColDef<ExitRow>[] = [
   },
 ];
 
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-        {title}
-      </Typography>
-      {children}
-    </Box>
-  );
-}
-
 function ExitDetailDialog({ row, onClose }: { row: ExitRow | null; onClose: () => void }) {
   if (!row) return null;
-  const { lossCut, profitTaking } = row;
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
@@ -169,82 +213,7 @@ function ExitDetailDialog({ row, onClose }: { row: ExitRow | null; onClose: () =
         </Typography>
       </DialogTitle>
       <DialogContent dividers>
-        {lossCut && (
-          <DetailSection title="損切り判定">
-            <Stack spacing={0.5}>
-              <Typography variant="body2">
-                優先度: {lossCut.priority ? `${lossCut.priority}(${lossCut.priority === "A" ? "即時売却" : "回避・撤退検討"})` : "該当なし"}
-              </Typography>
-              <Typography variant="body2">
-                スコア差分:{" "}
-                {(() => {
-                  const diff = lossCutScoreDiff(lossCut);
-                  return diff !== null ? `${diff > 0 ? "+" : ""}${diff.toFixed(0)}(購入時${lossCut.purchaseScore ?? "-"})` : "-";
-                })()}
-              </Typography>
-              <Typography variant="body2">
-                購入時からの下落率:{" "}
-                {(() => {
-                  const drawdown = lossCutDrawdownPercent(lossCut);
-                  return drawdown !== null ? `${drawdown.toFixed(1)}%` : "-";
-                })()}
-              </Typography>
-              <Typography variant="body2">
-                上場廃止/監理リスク: {lossCut.isDelistingRisk || lossCut.isUnderSupervision ? "発生中" : "-"}
-              </Typography>
-              <Typography variant="body2">
-                営業利益前期比: {lossCut.operatingProfitYoy != null ? `${lossCut.operatingProfitYoy.toFixed(1)}%` : "-"}
-              </Typography>
-              <Typography variant="body2">
-                EPS成長率: {lossCut.epsGrowth != null ? `${lossCut.epsGrowth.toFixed(1)}%` : "-"}
-              </Typography>
-            </Stack>
-          </DetailSection>
-        )}
-
-        {lossCut && profitTaking && <Divider sx={{ mb: 2 }} />}
-
-        {profitTaking && (
-          <DetailSection title="利確判定">
-            <Stack spacing={0.5}>
-              {profitTaking.achievementPercent !== null && profitTaking.effectiveTargetPrice !== null ? (
-                <Box>
-                  <Stack direction="row" sx={{ justifyContent: "space-between" }}>
-                    <Typography variant="body2">
-                      目標 {profitTaking.effectiveTargetPrice.toLocaleString()}
-                      {profitTaking.effectiveTargetPriceLogic
-                        ? `(${TARGET_PRICE_LOGIC_LABEL[profitTaking.effectiveTargetPriceLogic]})`
-                        : ""}
-                    </Typography>
-                    <Typography variant="body2">{profitTaking.achievementPercent.toFixed(0)}%</Typography>
-                  </Stack>
-                  <LinearProgress
-                    variant="determinate"
-                    value={Math.min(profitTaking.achievementPercent, 100)}
-                    color={profitTaking.achievementPercent >= 100 ? "success" : "primary"}
-                    sx={{ height: 6, borderRadius: 3, mt: 0.5 }}
-                  />
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  {profitTaking.targetPriceAuto !== null &&
-                  profitTaking.purchasePrice !== null &&
-                  profitTaking.targetPriceAuto <= profitTaking.purchasePrice
-                    ? "目標価格が購入価格を下回っているため達成度は無効"
-                    : "ターゲットプライス未設定"}
-                </Typography>
-              )}
-              <Typography variant="body2">
-                PER(予想): {profitTaking.forwardPer !== null ? `${profitTaking.forwardPer.toFixed(1)}倍` : "-"}
-              </Typography>
-              <Typography variant="body2">
-                トレイリングストップ: {isTrailingStopTriggered(profitTaking) ? "発動(逆指値ライン到達)" : "未発動"}
-                (最高値 {profitTaking.highestPriceSincePurchase?.toLocaleString() ?? "-"} / 逆指値{" "}
-                {profitTaking.trailingStopTriggerPrice?.toLocaleString() ?? "-"})
-              </Typography>
-            </Stack>
-          </DetailSection>
-        )}
+        <ExitJudgmentDetail lossCut={row.lossCut} profitTaking={row.profitTaking} />
       </DialogContent>
     </Dialog>
   );
@@ -269,6 +238,8 @@ export default function ExitMonitorPage() {
       name: base.name,
       sector: base.sector,
       currentPrice: base.currentPrice,
+      purchasePrice: base.purchasePrice,
+      quantity: base.quantity,
       lossCut,
       profitTaking,
       verdict: classifyTrade(undefined, lossCut, profitTaking),

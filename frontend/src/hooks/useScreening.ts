@@ -2,24 +2,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createScreeningGroup,
   createScreeningRule,
+  createTradingFeeTier,
   deleteScreeningGroup,
   deleteScreeningRule,
+  deleteTradingFeeTier,
   exportScreeningRules,
+  fetchCapitalGainsTaxRate,
   fetchScreeningGroups,
   fetchScreeningParamDefinitions,
+  fetchTechnicalScoreConfig,
   fetchTechnicalScoreThreshold,
   fetchTradeHistory,
+  fetchTradingFeeTiers,
   importScreeningRules,
+  updateCapitalGainsTaxRate,
   updateScreeningGroup,
   updateScreeningGroupActive,
   updateScreeningGroupCandidateActive,
   updateScreeningRule,
+  updateTechnicalScoreConfig,
   updateTechnicalScoreThreshold,
+  updateTradingFeeTier,
 } from "@/lib/api";
 import type {
   CreateScreeningRuleRequest,
   ScreeningRulesExport,
+  TechnicalScoreConfig,
   UpsertScreeningGroupRequest,
+  UpsertTradingFeeTierRequest,
 } from "@/types";
 
 export const screeningGroupsQueryKey = ["screeningGroups"] as const;
@@ -140,5 +150,71 @@ export function useUpdateTechnicalScoreThreshold() {
   return useMutation({
     mutationFn: (threshold: number) => updateTechnicalScoreThreshold(threshold),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["technicalScoreThreshold"] }),
+  });
+}
+
+export function useTechnicalScoreConfig() {
+  return useQuery({
+    queryKey: ["technicalScoreConfig"],
+    queryFn: fetchTechnicalScoreConfig,
+  });
+}
+
+export function useUpdateTechnicalScoreConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (config: TechnicalScoreConfig) => updateTechnicalScoreConfig(config),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["technicalScoreConfig"] }),
+  });
+}
+
+export function useCapitalGainsTaxRate() {
+  return useQuery({
+    queryKey: ["capitalGainsTaxRate"],
+    queryFn: fetchCapitalGainsTaxRate,
+  });
+}
+
+export function useUpdateCapitalGainsTaxRate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rate: number) => updateCapitalGainsTaxRate(rate),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["capitalGainsTaxRate"] }),
+  });
+}
+
+export const tradingFeeTiersQueryKey = ["tradingFeeTiers"] as const;
+
+export function useTradingFeeTiers() {
+  return useQuery({ queryKey: tradingFeeTiersQueryKey, queryFn: fetchTradingFeeTiers });
+}
+
+function useInvalidateTradingFeeTiers() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: tradingFeeTiersQueryKey });
+}
+
+export function useCreateTradingFeeTier() {
+  const invalidate = useInvalidateTradingFeeTiers();
+  return useMutation({
+    mutationFn: (body: UpsertTradingFeeTierRequest) => createTradingFeeTier(body),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateTradingFeeTier() {
+  const invalidate = useInvalidateTradingFeeTiers();
+  return useMutation({
+    mutationFn: ({ tierId, body }: { tierId: number; body: UpsertTradingFeeTierRequest }) =>
+      updateTradingFeeTier(tierId, body),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteTradingFeeTier() {
+  const invalidate = useInvalidateTradingFeeTiers();
+  return useMutation({
+    mutationFn: (tierId: number) => deleteTradingFeeTier(tierId),
+    onSuccess: invalidate,
   });
 }

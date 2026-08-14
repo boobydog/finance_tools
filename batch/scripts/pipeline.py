@@ -35,6 +35,7 @@ from scripts.metrics_fetcher import run_technical_metrics_fetch
 from scripts.screening_engine import evaluate_and_apply
 from scripts.target_price import sync_target_prices
 from scripts.target_symbols import get_tracked_ticker_symbols, resolve_target_symbols
+from scripts.technical_score_settings import build_scoring_config, get_technical_score_settings
 from scripts.technical_screener import (
     apply_score_candidates,
     persist_scores,
@@ -45,28 +46,6 @@ from scripts.technical_screener import (
 logger = logging.getLogger(__name__)
 
 _refresh_lock = threading.Lock()
-
-TECHNICAL_SCREEN_BENCHMARK_SYMBOL = "^N225"
-TECHNICAL_SCREEN_HISTORY_PERIOD = "2y"
-TECHNICAL_SCREEN_SCORING_CONFIG = {
-    "stage2": {
-        "points": 30,
-        "sma_short_period": 50,
-        "sma_long_period": 200,
-        "sma_long_trend_lookback_days": 20,
-    },
-    "relative_strength": {"points": 25, "lookback_days": 126, "threshold": 1.3},
-    "volume_surge": {"points": 20, "average_period": 20, "ratio_threshold": 1.5},
-    "rsi_zone": {
-        "points": 15,
-        "period": 14,
-        "comfort_low": 45,
-        "comfort_high": 65,
-        "overbought_threshold": 70,
-        "overbought_penalty": -10,
-    },
-    "vcp_or_high": {"points": 10, "high_52w_ratio_threshold": 0.95, "volatility_lookback_days": 10},
-}
 
 
 def refresh_metrics_and_screening(engine: Engine) -> None:
@@ -90,14 +69,15 @@ def _run(engine: Engine) -> None:
 
     if symbols:
         try:
+            technical_score_settings = get_technical_score_settings(engine)
             records = run_technical_screen(
                 engine,
                 {
                     "symbols": symbols,
                     "include_nikkei225": False,
-                    "benchmark_symbol": TECHNICAL_SCREEN_BENCHMARK_SYMBOL,
-                    "history_period": TECHNICAL_SCREEN_HISTORY_PERIOD,
-                    "scoring": TECHNICAL_SCREEN_SCORING_CONFIG,
+                    "benchmark_symbol": technical_score_settings["benchmark_symbol"],
+                    "history_period": technical_score_settings["history_period"],
+                    "scoring": build_scoring_config(technical_score_settings),
                 },
             )
             persist_scores(engine, records)

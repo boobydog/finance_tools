@@ -86,6 +86,7 @@ def fetch_screening_groups_hierarchical(engine: Engine) -> dict:
             "isDefault": bool(row["is_default"]),
             "candidateScreeningActive": bool(row["candidate_screening_active"]),
             "signalCountThreshold": row["signal_count_threshold"],
+            "holdingPeriodExitDays": row["holding_period_exit_days"],
             "rules": rules_by_group.get(row["group_id"], _empty_rules()),
         }
         for row in group_rows

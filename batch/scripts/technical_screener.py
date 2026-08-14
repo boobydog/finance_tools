@@ -1,6 +1,8 @@
 """テクニカル指標によるスコアリングスクリーニング。
 
-有名投資家の手法を参考にした5要素のスコアリングでJSON指定の候補銘柄を採点する。
+有名投資家の手法を参考にした6要素のスコアリングでJSON指定の候補銘柄を採点する。
+各要素の配点・期間・閾値は、下記はデフォルト値であり、実際にはapp_settingsテーブル
+(technical_score_settings.py)から読み込む設定値を使う(設定画面から編集可能)。
 
 1. ワインスタイン ステージ2判定 (+30点)
    終値 > SMA50 > SMA200 かつ SMA200が直近20日間で上昇していれば加点。
@@ -23,6 +25,10 @@
    パターンを検出するものだが、ここではその厳密な検出は行わず、
    ATR/終値の単純な期間比較による簡易的な近似で代用している。
    複数スイングの収縮を検出する本格的な実装は今後の課題とする。
+6. MACD上昇モメンタム (+15点)
+   MACD線(短期EMA-長期EMA)がシグナル線(MACDのEMA)を上回っていれば加点。
+   1(トレンド構造)・4(オシレーター)とは異なる第3の系統(移動平均収束拡散)による
+   モメンタム転換の確認シグナルとして追加し、単一指標への過度な依存を減らす。
 """
 
 import logging
@@ -43,7 +49,6 @@ from scripts.yfinance_batch import chunked
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_HISTORY_DAYS = 252  # 52週(1年)分の取引日数の目安
 DEFAULT_CANDIDATE_SCORE_THRESHOLD = 60
 
 _PERIOD_PATTERN = re.compile(r"^(\d+)(d|mo|y)$")
@@ -220,9 +225,9 @@ def _score_rsi_zone(df: pd.DataFrame, cfg: dict) -> tuple[int, dict]:
     return 0, {"rsi": latest_rsi}
 
 
-def _is_volatility_contracting(df: pd.DataFrame, lookback_days: int) -> bool:
+def _is_volatility_contracting(df: pd.DataFrame, lookback_days: int, atr_period: int) -> bool:
     """VCPの簡易近似(TODO: 複数スイングを検出する本格的なVCP判定に置き換える)。"""
-    atr = talib.ATR(df["High"].values, df["Low"].values, df["Close"].values, timeperiod=14)
+    atr = talib.ATR(df["High"].values, df["Low"].values, df["Close"].values, timeperiod=atr_period)
     normalized = atr / df["Close"].values
     if len(normalized) < lookback_days * 2:
         return False
@@ -236,14 +241,31 @@ def _is_volatility_contracting(df: pd.DataFrame, lookback_days: int) -> bool:
 
 def _score_vcp_or_high(df: pd.DataFrame, cfg: dict) -> tuple[int, dict]:
     close = df["Close"].values
-    high_52w = df["High"].values[-REQUIRED_HISTORY_DAYS:].max()
+    high_52w = df["High"].values[-cfg["history_lookback_days"] :].max()
     near_high = bool(close[-1] >= high_52w * cfg["high_52w_ratio_threshold"])
-    contracting = _is_volatility_contracting(df, cfg["volatility_lookback_days"])
+    contracting = _is_volatility_contracting(df, cfg["volatility_lookback_days"], cfg["atr_period"])
     meets = near_high or contracting
     return (cfg["points"] if meets else 0), {
         "high_52w": high_52w,
         "near_52w_high": near_high,
         "volatility_contracting": contracting,
+    }
+
+
+def _score_macd(df: pd.DataFrame, cfg: dict) -> tuple[int, dict]:
+    """MACD線がシグナル線を上回っていれば上昇モメンタムありとして加点する。"""
+    close = df["Close"].values
+    macd, signal, _hist = talib.MACD(
+        close, fastperiod=cfg["fast_period"], slowperiod=cfg["slow_period"], signalperiod=cfg["signal_period"]
+    )
+    if len(macd) == 0 or np.isnan(macd[-1]) or np.isnan(signal[-1]):
+        return 0, {"macd": None, "macd_signal": None, "is_macd_bullish": None}
+
+    is_bullish = bool(macd[-1] > signal[-1])
+    return (cfg["points"] if is_bullish else 0), {
+        "macd": float(macd[-1]),
+        "macd_signal": float(signal[-1]),
+        "is_macd_bullish": is_bullish,
     }
 
 
@@ -253,8 +275,9 @@ def _score_symbol(symbol: str, df: pd.DataFrame, benchmark_df: pd.DataFrame, sco
     volume_score, volume_detail = _score_volume_surge(df, scoring_cfg["volume_surge"])
     rsi_score, rsi_detail = _score_rsi_zone(df, scoring_cfg["rsi_zone"])
     vcp_score, vcp_detail = _score_vcp_or_high(df, scoring_cfg["vcp_or_high"])
+    macd_score, macd_detail = _score_macd(df, scoring_cfg["macd"])
 
-    total_score = stage2_score + rs_score + volume_score + rsi_score + vcp_score
+    total_score = stage2_score + rs_score + volume_score + rsi_score + vcp_score + macd_score
 
     record = {
         "symbol": symbol,
@@ -265,12 +288,14 @@ def _score_symbol(symbol: str, df: pd.DataFrame, benchmark_df: pd.DataFrame, sco
         "volume_score": volume_score,
         "rsi_score": rsi_score,
         "vcp_score": vcp_score,
+        "macd_score": macd_score,
     }
     record.update(stage2_detail)
     record.update(rs_detail)
     record.update(volume_detail)
     record.update(rsi_detail)
     record.update(vcp_detail)
+    record.update(macd_detail)
     return record
 
 
@@ -317,6 +342,7 @@ def persist_scores(engine: Engine, records: list[dict]) -> None:
             "volume_score": r["volume_score"],
             "rsi_score": r["rsi_score"],
             "vcp_score": r["vcp_score"],
+            "macd_score": r["macd_score"],
         }
         for r in records
     ]

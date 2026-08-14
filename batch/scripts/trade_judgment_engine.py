@@ -9,7 +9,22 @@ entry_timing/loss_cut/profit_taking用のルールセットも持つ(screening_c
   signal_count_threshold以上なら「有力候補」とする。
 - loss_cut: 分類Aのいずれかを満たせば優先度A(即時売却)、満たさず分類Bの
   いずれかを満たせば優先度B(回避・撤退検討)。
-- profit_taking: 分類Aのいずれかを満たせば「売却検討」とする。
+- profit_taking: 分類Aのいずれかを満たせば「売却検討」とする(手数料・税引後の
+  純損益が黒字である場合のみ有効。マイナスなら利確シグナルとして扱わない)。
+
+保有期間満了による強制決済は、上記の損切り・利確とは別の第3の判定軸として扱う
+(evaluate_holding_period_exit)。損益に関わらず機械的に決済する規律ルールのため、
+利確判定のA/Bルールエンジンには含めず、また純損益ゲートの対象外とする
+(通常のprofit_takingと混ぜると、含み損の状態で期間満了した場合に純損益ゲートで
+握りつぶされ、「損益に関わらず決済する」という本来の趣旨に反してしまうため)。
+
+evaluate_entryは、買入タイミングの分類A/Cとは別に、同じグループのloss_cut分類A/Bも
+先読みで評価する(「今日この銘柄を買ったら、購入直後に損切り対象にならないか」)。
+評価対象のrowには購入価格・購入時スコアが存在しないため、それらに依存する条件
+(drawdown_percent・score_diffなど)は自動的に不成立となり、銘柄自体の状態を示す条件
+(上場廃止リスク・監理銘柄・営業利益/EPS成長率の悪化など)のみが働く。loss_cut分類A相当は
+候補から除外、分類B相当は警告表示のみ(除外はしない)。損切り判定用の閾値をそのまま
+再利用するため、entry_timing側に同じ条件を別途登録する必要はない。
 
 グループ解決方針:
 - 銘柄が持つタグ(=候補になった時の根拠グループ名)のうち、有効なグループに一致する
@@ -21,12 +36,16 @@ entry_timing/loss_cut/profit_taking用のルールセットも持つ(screening_c
 """
 
 from collections import defaultdict
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from scripts.screening_config import fetch_screening_groups_hierarchical
 from scripts.sql_runner import load_sql
+
+JST = ZoneInfo("Asia/Tokyo")
 
 
 def _evaluate_condition(
@@ -114,6 +133,8 @@ def evaluate_entry(row: dict, group: dict | None) -> dict:
             "is_strong_candidate": False,
             "is_excluded": False,
             "excluded_param_key": None,
+            "loss_cut_risk_at_entry": None,
+            "loss_cut_risk_param_key": None,
             "judgment_group_name": None,
         }
     entry_rules = group["rules"].get("entry_timing", {})
@@ -123,13 +144,30 @@ def evaluate_entry(row: dict, group: dict | None) -> dict:
     # 分類A(除外条件): シグナル数の条件をすべて満たしていても、これに該当する場合は
     # 有力候補としない(例: スコア不足・過熱・単日急騰・上抜け直後などの足切り)。
     excluded_rule = _first_match(row, entry_rules.get("A", []))
+
+    # 購入直後に損切り対象にならないかの先読みチェック(同グループのloss_cut基準をそのまま
+    # 流用)。rowには購入価格・購入時スコアが存在しないため、それらに依存する条件
+    # (drawdown_percent・score_diffなど)は自動的に不成立となり、銘柄自体の状態を示す
+    # 条件(上場廃止リスク・監理銘柄・営業利益/EPS成長率の悪化など)だけが働く。
+    loss_cut_rules = group["rules"].get("loss_cut", {})
+    loss_cut_a_match = _first_match(row, loss_cut_rules.get("A", []))
+    loss_cut_b_match = None if loss_cut_a_match else _first_match(row, loss_cut_rules.get("B", []))
+    loss_cut_match = loss_cut_a_match or loss_cut_b_match
+    loss_cut_risk_at_entry = "A" if loss_cut_a_match else ("B" if loss_cut_b_match else None)
+
+    # 損切り分類A相当(即時売却級)は買入タイミングの分類A除外と同じ強さで候補から除外する。
+    # 分類B相当(回避・撤退検討級)は除外せず、警告としてのみ表示する。
+    is_excluded = excluded_rule is not None or loss_cut_risk_at_entry == "A"
+
     return {
         "signal_count": count,
         "signal_total": len(c_rules),
         "signal_count_threshold": threshold,
-        "is_strong_candidate": excluded_rule is None and threshold is not None and count >= threshold,
-        "is_excluded": excluded_rule is not None,
+        "is_strong_candidate": not is_excluded and threshold is not None and count >= threshold,
+        "is_excluded": is_excluded,
         "excluded_param_key": excluded_rule["paramKey"] if excluded_rule else None,
+        "loss_cut_risk_at_entry": loss_cut_risk_at_entry,
+        "loss_cut_risk_param_key": loss_cut_match["paramKey"] if loss_cut_match else None,
         "ma25_deviation_percent": row.get("ma25_deviation_percent"),
         "daily_change_percent": row.get("daily_change_percent"),
         "judgment_group_name": group["name"],
@@ -164,6 +202,26 @@ def evaluate_profit_taking(row: dict, group: dict | None) -> dict:
     }
 
 
+def evaluate_holding_period_exit(purchase_date: datetime | date | None, group: dict | None) -> dict:
+    """保有期間満了による強制決済(損切り・利確とは別の第3の判定軸)。
+
+    損益に関わらず機械的に決済する規律ルールのため、profit_takingの純損益ゲートの
+    対象外として扱う(呼び出し側でshould_take_profitとは独立に判定に使うこと)。
+    """
+    threshold_days = group.get("holdingPeriodExitDays") if group else None
+    if threshold_days is None or purchase_date is None:
+        return {"holding_days": None, "holding_period_exit_days": threshold_days, "is_holding_period_exceeded": False}
+
+    purchased_on = purchase_date.date() if isinstance(purchase_date, datetime) else purchase_date
+    today_jst = datetime.now(JST).date()
+    holding_days = (today_jst - purchased_on).days
+    return {
+        "holding_days": holding_days,
+        "holding_period_exit_days": threshold_days,
+        "is_holding_period_exceeded": holding_days >= threshold_days,
+    }
+
+
 def build_entry_row(row: dict) -> dict:
     current_price = row.get("current_price")
     ma25 = row.get("ma25")
@@ -185,6 +243,11 @@ def build_entry_row(row: dict) -> dict:
         "ma25_deviation_percent": ma25_deviation_percent,
         "daily_change_percent": daily_change_percent,
         "ma25_above_streak_days": row.get("ma25_above_streak_days"),
+        # 購入直後の損切りリスク先読みチェック用(evaluate_entryがloss_cut分類A/Bを評価する際に使う)。
+        "is_delisting_risk": row.get("is_delisting_risk"),
+        "is_under_supervision": row.get("is_under_supervision"),
+        "operating_profit_yoy": row.get("operating_profit_yoy"),
+        "eps_growth": row.get("eps_growth"),
     }
 
 
@@ -235,11 +298,15 @@ def build_profit_taking_row(row: dict, trailing_stop_trigger_price: float | None
     is_trailing_stop_triggered = (
         None if current_price is None or trailing_stop_trigger_price is None else current_price <= trailing_stop_trigger_price
     )
+    ma25 = row.get("ma25")
+    # トレンド反転(MA25割れ)による手仕舞いシグナル(①テクニカルな反転で手仕舞い)。
+    is_below_ma25 = None if current_price is None or ma25 is None else current_price < ma25
     return {
         "achievement_percent": achievement_percent,
         "effective_target_price": effective_target_price,
         "effective_target_price_logic": effective_target_price_logic,
         "forward_per": row.get("forward_per"),
         "is_trailing_stop_triggered": is_trailing_stop_triggered,
+        "is_below_ma25": is_below_ma25,
         "hv": row.get("hv"),
     }

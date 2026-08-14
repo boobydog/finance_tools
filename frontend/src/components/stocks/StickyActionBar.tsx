@@ -40,6 +40,7 @@ export function StickyActionBar({
         tickerSymbol={stock.tickerSymbol}
         stockName={stock.name}
         currentStatus={stock.status}
+        currentPrice={stock.latestClose}
         fullWidth
       />
     </Paper>
