@@ -1,4 +1,7 @@
 -- 利確判定画面向け: 保有中(holding)銘柄の目標達成度・過熱感・トレイリングストップ関連指標を返す。
+-- purchase_price/quantityは複数回の買い増し・部分売却を集計した値(口座種別問わず)。
+-- purchase_dateはポジションを開いた最初の購入日(保有期間の起点)。
+-- 口座種別ごとの内訳(手数料・税引後損益の計算用)はselect_position_lots.sqlで別途取得する。
 SELECT
     s.ticker_symbol,
     s.name,
@@ -12,7 +15,10 @@ SELECT
     u.highest_price_since_purchase,
     m.forward_per,
     m.hv,
-    buy.purchase_price
+    m.ma25,
+    buy.purchase_price,
+    buy.quantity,
+    buy.purchase_date
 FROM stocks s
 JOIN user_stock_status u ON u.ticker_symbol = s.ticker_symbol
 LEFT JOIN stock_metrics m ON m.ticker_symbol = s.ticker_symbol
@@ -24,13 +30,14 @@ LEFT JOIN (
     ) d2 ON d1.ticker_symbol = d2.ticker_symbol AND d1.date = d2.max_date
 ) d ON d.ticker_symbol = s.ticker_symbol
 LEFT JOIN (
-    SELECT th1.ticker_symbol, th1.price AS purchase_price
-    FROM trade_history th1
-    INNER JOIN (
-        SELECT ticker_symbol, MAX(traded_at) AS max_traded_at
-        FROM trade_history WHERE action = 'buy' GROUP BY ticker_symbol
-    ) th2 ON th1.ticker_symbol = th2.ticker_symbol AND th1.traded_at = th2.max_traded_at
-    WHERE th1.action = 'buy'
+    SELECT
+        ticker_symbol,
+        SUM(CASE WHEN action = 'buy' THEN quantity ELSE -quantity END) AS quantity,
+        SUM(CASE WHEN action = 'buy' THEN price * quantity ELSE 0 END)
+            / NULLIF(SUM(CASE WHEN action = 'buy' THEN quantity ELSE 0 END), 0) AS purchase_price,
+        MIN(CASE WHEN action = 'buy' THEN traded_at END) AS purchase_date
+    FROM trade_history
+    GROUP BY ticker_symbol
 ) buy ON buy.ticker_symbol = s.ticker_symbol
 WHERE u.status = 'holding'
 ORDER BY s.ticker_symbol;

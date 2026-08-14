@@ -51,43 +51,126 @@ const VALUE_MODE_OPTIONS: { value: RuleValueMode; label: string }[] = [
   { value: "hv_multiplier", label: "HV倍率" },
 ];
 
-const CATEGORY_META: Record<ScreeningCategory, { label: string; color: "error" | "warning" | "info" }> = {
+const CATEGORY_META: Record<
+  ScreeningCategory,
+  { label: string; color: "error" | "warning" | "info" }
+> = {
   A: { label: "分類A(原則禁止)", color: "error" },
   B: { label: "分類B(理由なき場合回避)", color: "warning" },
   C: { label: "分類C(条件次第)", color: "info" },
 };
 
-const SECTION_META: Record<RulePurpose, { label: string; description: string; categories: ScreeningCategory[] }> = {
+function SectionDescription({
+  intro,
+  bullets,
+}: {
+  intro: string;
+  bullets: string[];
+}) {
+  return (
+    <Stack spacing={0.3} sx={{ display: "block", mb: 1.5 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: "block" }}
+      >
+        {intro}
+      </Typography>
+      <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+        {bullets.map((b) => (
+          <Typography
+            key={b}
+            component="li"
+            variant="caption"
+            color="text.secondary"
+          >
+            {b}
+          </Typography>
+        ))}
+      </Box>
+    </Stack>
+  );
+}
+
+const SECTION_META: Record<
+  RulePurpose,
+  {
+    label: string;
+    description: React.ReactNode;
+    categories: ScreeningCategory[];
+  }
+> = {
   candidate: {
     label: "候補スクリーニング",
-    description: "未設定の銘柄を自動で「候補」として反映する基準。",
+    description: (
+      <SectionDescription
+        intro="未設定の銘柄を自動で「候補」として反映する基準です。"
+        bullets={[
+          "分類A(原則禁止)・分類B(理由なき場合回避): どちらも同じ強さの除外条件です。いずれかに1つでも該当すると、そのグループの候補としては失格になります(A・B内の複数条件はOR)。",
+          "分類C(条件次第): 現在は候補判定には使用されません(入力はできますが参考情報にとどまります)。",
+        ]}
+      />
+    ),
     categories: ["A", "B", "C"],
   },
   entry_timing: {
     label: "買入タイミング",
-    description:
-      "候補銘柄の買入シグナル(分類C)。満たした数がしきい値以上で有力候補。分類Aに該当する場合は除外(例: スコアが低すぎる銘柄の足切り)。",
+    description: (
+      <SectionDescription
+        intro="候補銘柄について、買入タイミングとして有力かどうかを判定します。"
+        bullets={[
+          "分類A(原則禁止): 1つでも該当すると、シグナル数がしきい値以上でも強制的に除外します(例: スコア不足・過熱・単日急騰などの足切り)。",
+          "分類Bはこのセクション自体には使用されません。",
+          "分類C(条件次第): 該当した条件の数を数え、下の「有力候補と判定するシグナル数」以上を満たせば有力候補とします(件数によるスコアリング。複数条件はOR)。",
+          "購入直後に損切り対象にならないかの先読みチェックとして、同じグループの「損切り判定」セクションの分類A/Bも自動的に評価されます(ここに個別設定は不要です)。損切り分類Aに該当する銘柄は候補から除外され、分類Bに該当する銘柄は警告表示されます。",
+        ]}
+      />
+    ),
     categories: ["A", "C"],
   },
   loss_cut: {
     label: "損切り判定",
-    description: "分類Aで即時売却、分類Bで回避・撤退検討と判定します。",
+    description: (
+      <SectionDescription
+        intro="保有銘柄について、損切りすべきかを判定します。"
+        bullets={[
+          "分類A(原則禁止): 1つでも該当すれば「即時売却」と判定します。",
+          "分類B(理由なき場合回避): 分類Aに該当せず、1つでも該当すれば「回避・撤退検討」と判定します(A→Bの優先順位。各分類内の複数条件はOR)。",
+          "分類Cは損切り判定には使用されません。",
+        ]}
+      />
+    ),
     categories: ["A", "B"],
   },
   profit_taking: {
     label: "利確判定",
-    description: "分類Aのいずれかを満たせば売却検討と判定します。",
+    description: (
+      <SectionDescription
+        intro="保有銘柄について、利確すべきかを判定します。"
+        bullets={[
+          "分類A(原則禁止): いずれか1つでも該当すれば売却検討と判定します(複数条件はOR)。",
+          "分類B・Cは利確判定には使用されません。",
+          "下の「保有期間上限」は分類A/B/Cとは別の独立した判定軸で、日数のみで判定します(損益に関わらず強制決済)。",
+        ]}
+      />
+    ),
     categories: ["A"],
   },
 };
 
-const SECTION_ORDER: RulePurpose[] = ["candidate", "entry_timing", "loss_cut", "profit_taking"];
+const SECTION_ORDER: RulePurpose[] = [
+  "candidate",
+  "entry_timing",
+  "loss_cut",
+  "profit_taking",
+];
 
 function validateValue(
   definition: ScreeningParamDefinition | undefined,
-  value: number | null
+  value: number | null,
 ): string | null {
-  if (!definition || definition.valueType !== "number" || value === null) return null;
+  if (!definition || definition.valueType !== "number" || value === null)
+    return null;
   if (definition.minValue !== null && value < definition.minValue) {
     return `${definition.minValue}以上で入力してください`;
   }
@@ -191,14 +274,21 @@ function RuleRow({
               ? `${definition.minValue}〜${definition.maxValue}${definition.unit ?? ""}`
               : " ")
         }
-        onChange={(e) => setValue(e.target.value === "" ? null : Number(e.target.value))}
+        onChange={(e) =>
+          setValue(e.target.value === "" ? null : Number(e.target.value))
+        }
         onBlur={() => {
           if (!error) commit({});
         }}
         sx={{ width: 200 }}
         slotProps={{ htmlInput: { step: "any" } }}
       />
-      <IconButton size="small" onClick={() => deleteRule.mutate(rule.ruleId)} aria-label="削除" sx={{ mt: { sm: 0.5 } }}>
+      <IconButton
+        size="small"
+        onClick={() => deleteRule.mutate(rule.ruleId)}
+        aria-label="削除"
+        sx={{ mt: { sm: 0.5 } }}
+      >
         <DeleteIcon fontSize="small" />
       </IconButton>
     </Stack>
@@ -244,7 +334,11 @@ function RulePurposeSection({
       sx={{ mb: 1, "&:before": { display: "none" } }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap", width: "100%" }}>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "center", flexWrap: "wrap", width: "100%" }}
+        >
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
             {meta.label}
           </Typography>
@@ -252,15 +346,17 @@ function RulePurposeSection({
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-          {meta.description}
-        </Typography>
+        {meta.description}
 
         {extraHeader}
 
         <Stack spacing={1.5}>
           {rules.map((rule) => (
-            <RuleRow key={rule.ruleId} rule={rule} paramDefinitions={paramDefinitions} />
+            <RuleRow
+              key={rule.ruleId}
+              rule={rule}
+              paramDefinitions={paramDefinitions}
+            />
           ))}
         </Stack>
         {rules.length === 0 && (
@@ -301,15 +397,28 @@ export function RuleEditor({
 
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description ?? "");
-  const [signalCountThreshold, setSignalCountThreshold] = useState<number | null>(group.signalCountThreshold);
+  const [signalCountThreshold, setSignalCountThreshold] = useState<
+    number | null
+  >(group.signalCountThreshold);
+  const [holdingPeriodExitDays, setHoldingPeriodExitDays] = useState<
+    number | null
+  >(group.holdingPeriodExitDays);
 
-  const commitGroup = (patch: Partial<{ name: string; description: string; signalCountThreshold: number | null }>) => {
+  const commitGroup = (
+    patch: Partial<{
+      name: string;
+      description: string;
+      signalCountThreshold: number | null;
+      holdingPeriodExitDays: number | null;
+    }>,
+  ) => {
     updateGroup.mutate({
       groupId: group.groupId,
       body: {
         name,
         description,
         signalCountThreshold,
+        holdingPeriodExitDays,
         ...patch,
       },
     });
@@ -330,18 +439,36 @@ export function RuleEditor({
       variant="outlined"
       defaultExpanded={false}
       disableGutters
-      sx={{ opacity: group.isActive ? 1 : 0.5, transition: "opacity 0.2s", "&:before": { display: "none" } }}
+      sx={{
+        opacity: group.isActive ? 1 : 0.5,
+        transition: "opacity 0.2s",
+        "&:before": { display: "none" },
+      }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", width: "100%", flexWrap: "wrap" }}>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "center", width: "100%", flexWrap: "wrap" }}
+        >
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {group.name}
           </Typography>
           {group.isDefault && (
-            <Chip icon={<LockIcon fontSize="small" />} label="デフォルト" size="small" color="default" />
+            <Chip
+              icon={<LockIcon fontSize="small" />}
+              label="デフォルト"
+              size="small"
+              color="default"
+            />
           )}
           {!group.isActive && <Chip label="無効" size="small" />}
-          <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }} noWrap>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ flex: 1, minWidth: 0 }}
+            noWrap
+          >
             {group.description}
           </Typography>
         </Stack>
@@ -349,7 +476,12 @@ export function RuleEditor({
       <AccordionDetails>
         <Stack
           direction="row"
-          sx={{ justifyContent: "space-between", alignItems: "flex-start", mb: 2, gap: 1 }}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 2,
+            gap: 1,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <Stack spacing={1} sx={{ flex: 1 }}>
@@ -381,7 +513,10 @@ export function RuleEditor({
                   size="small"
                   checked={group.isActive}
                   onChange={(e) =>
-                    updateGroupActive.mutate({ groupId: group.groupId, isActive: e.target.checked })
+                    updateGroupActive.mutate({
+                      groupId: group.groupId,
+                      isActive: e.target.checked,
+                    })
                   }
                 />
               }
@@ -393,7 +528,11 @@ export function RuleEditor({
               onClick={() => deleteGroup.mutate(group.groupId)}
               aria-label="グループ削除"
               disabled={group.isDefault}
-              title={group.isDefault ? "デフォルトグループは削除できません" : "グループ削除"}
+              title={
+                group.isDefault
+                  ? "デフォルトグループは削除できません"
+                  : "グループ削除"
+              }
             >
               <DeleteIcon fontSize="small" />
             </IconButton>
@@ -437,10 +576,34 @@ export function RuleEditor({
                     label="有力候補と判定するシグナル数"
                     value={signalCountThreshold ?? ""}
                     onChange={(e) =>
-                      setSignalCountThreshold(e.target.value === "" ? null : Number(e.target.value))
+                      setSignalCountThreshold(
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
                     }
                     onBlur={() => {
-                      if (signalCountThreshold !== group.signalCountThreshold) commitGroup({});
+                      if (signalCountThreshold !== group.signalCountThreshold)
+                        commitGroup({});
+                    }}
+                    slotProps={{ htmlInput: { step: 1, min: 0 } }}
+                    sx={{ width: 260 }}
+                  />
+                </Box>
+              ) : purpose === "profit_taking" ? (
+                <Box sx={{ mb: 1.5 }}>
+                  <TextField
+                    size="small"
+                    type="number"
+                    label="保有期間上限(日数)"
+                    helperText="超過すると損益に関わらず強制決済(未入力なら無効)"
+                    value={holdingPeriodExitDays ?? ""}
+                    onChange={(e) =>
+                      setHoldingPeriodExitDays(
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
+                    onBlur={() => {
+                      if (holdingPeriodExitDays !== group.holdingPeriodExitDays)
+                        commitGroup({});
                     }}
                     slotProps={{ htmlInput: { step: 1, min: 0 } }}
                     sx={{ width: 260 }}

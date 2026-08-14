@@ -8,7 +8,10 @@ import type { EntrySignal } from "@/types";
 
 // 有力候補(シグナル数がしきい値以上)の行は文字色を緑にする(通常時が白い部分のみ)。
 // 判定は該当グループ(なければデフォルトグループ)の基準でサーバー側評価済みの値を使う。
+// ただし損切りリスク(購入直後に損切り対象になる可能性)がある場合は、強く推せる候補では
+// ないため緑にはせずデフォルト色のままにする。
 function rowHighlight(row: EntrySignal): "success.main" | undefined {
+  if (row.lossCutRiskAtEntry) return undefined;
   return row.isStrongCandidate ? "success.main" : undefined;
 }
 
@@ -21,9 +24,24 @@ const EXCLUSION_LABEL: Record<string, (row: EntrySignal) => string> = {
   ma25_above_streak_days: (row) => `上抜け直後(${row.ma25AboveStreakDays ?? "-"}日目)`,
 };
 
+// 購入直後の損切りリスク(同グループのloss_cut分類A/Bを先読み評価した結果)のparam_keyごとの文言。
+const LOSS_CUT_RISK_LABEL: Record<string, string> = {
+  is_delisting_risk: "上場廃止リスクあり",
+  is_under_supervision: "監理銘柄指定",
+  operating_profit_yoy: "営業利益前期比が悪化",
+  eps_growth: "EPS成長率が悪化",
+};
+
+function lossCutRiskReason(row: EntrySignal): string {
+  if (!row.lossCutRiskParamKey) return "購入直後に損切り対象になる可能性";
+  return LOSS_CUT_RISK_LABEL[row.lossCutRiskParamKey] ?? "購入直後に損切り対象になる可能性";
+}
+
 function exclusionReason(row: EntrySignal): string {
-  if (!row.excludedParamKey) return "除外";
-  return EXCLUSION_LABEL[row.excludedParamKey]?.(row) ?? "除外";
+  const reasons: string[] = [];
+  if (row.excludedParamKey) reasons.push(EXCLUSION_LABEL[row.excludedParamKey]?.(row) ?? "除外");
+  if (row.lossCutRiskAtEntry === "A") reasons.push(`損切りリスク: ${lossCutRiskReason(row)}`);
+  return reasons.length > 0 ? reasons.join(" / ") : "除外";
 }
 
 const columns: GridColDef<EntrySignal>[] = [
@@ -145,6 +163,11 @@ const columns: GridColDef<EntrySignal>[] = [
             {exclusionReason(row)}
           </Typography>
         )}
+        {!row.isExcluded && row.lossCutRiskAtEntry === "B" && (
+          <Typography variant="caption" color="warning.main">
+            損切りリスク(回避検討): {lossCutRiskReason(row)}
+          </Typography>
+        )}
       </Stack>
     ),
   },
@@ -190,6 +213,7 @@ export default function EntryMonitorPage() {
         候補(候補ステータス)銘柄について、トレンド転換(MA25上抜け)・出来高急増・決算の市場予想超えのシグナルを確認できます。
         判定基準は銘柄が属するスクリーニンググループ(設定画面で編集可能)ごとに異なり、シグナル数がしきい値以上の有力候補の行は緑色で表示されます。
         除外条件(スコア不足・RSI過熱・MA25からの乖離しすぎ・前日比の急騰・上抜け直後など)に該当する銘柄は、シグナル数を満たしていても有力候補になりません(単日の急騰を誤って拾わないための対策です)。
+        また、同じグループの損切り判定(分類A)に購入前でも該当する銘柄(上場廃止リスク・監理銘柄指定など)は、購入直後に損切り対象になってしまうため候補から除外されます。分類Bに該当する場合は除外はせず、警告として表示されます。
       </Typography>
 
       {isLoading ? (

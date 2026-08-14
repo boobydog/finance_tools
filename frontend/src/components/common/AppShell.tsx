@@ -30,7 +30,7 @@ const NAV_ITEMS = [
   { href: "/stocks", label: "銘柄管理", icon: ShowChartIcon },
   { href: "/entry-monitor", label: "買入タイミング判定", icon: BoltIcon },
   { href: "/exit-monitor", label: "損切り・利確判定", icon: SwapVertIcon },
-  { href: "/settings/rules", label: "スクリーニング設定", icon: TuneIcon },
+  { href: "/settings/rules", label: "判定基準設定", icon: TuneIcon },
 ];
 
 const DRAWER_WIDTH = 240;

@@ -1,7 +1,7 @@
 INSERT INTO technical_scores (
-    ticker_symbol, total_score, stage2_score, rs_score, volume_score, rsi_score, vcp_score
+    ticker_symbol, total_score, stage2_score, rs_score, volume_score, rsi_score, vcp_score, macd_score
 ) VALUES (
-    :ticker_symbol, :total_score, :stage2_score, :rs_score, :volume_score, :rsi_score, :vcp_score
+    :ticker_symbol, :total_score, :stage2_score, :rs_score, :volume_score, :rsi_score, :vcp_score, :macd_score
 )
 ON DUPLICATE KEY UPDATE
     total_score = VALUES(total_score),
@@ -9,4 +9,5 @@ ON DUPLICATE KEY UPDATE
     rs_score = VALUES(rs_score),
     volume_score = VALUES(volume_score),
     rsi_score = VALUES(rsi_score),
-    vcp_score = VALUES(vcp_score);
+    vcp_score = VALUES(vcp_score),
+    macd_score = VALUES(macd_score);

@@ -24,12 +24,14 @@ export function StatusActions({
   tickerSymbol,
   stockName,
   currentStatus,
+  currentPrice,
   size = "medium",
   fullWidth = false,
 }: {
   tickerSymbol: string;
   stockName: string;
   currentStatus: StockStatus;
+  currentPrice?: number | null;
   size?: "small" | "medium" | "large";
   fullWidth?: boolean;
 }) {
@@ -61,6 +63,7 @@ export function StatusActions({
           tickerSymbol={tickerSymbol}
           stockName={stockName}
           action={tradeDialogAction}
+          currentPrice={currentPrice}
         />
       )}
     </>

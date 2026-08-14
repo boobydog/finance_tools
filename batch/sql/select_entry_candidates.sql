@@ -3,6 +3,8 @@ SELECT
     s.ticker_symbol,
     s.name,
     s.sector,
+    s.is_under_supervision,
+    s.is_delisting_risk,
     d.close_price AS current_price,
     prev.close_price AS previous_close,
     m.ma25,
@@ -11,6 +13,8 @@ SELECT
     m.earnings_surprise_percent,
     m.rsi,
     m.hv,
+    m.operating_profit_yoy,
+    m.eps_growth,
     t.total_score AS screening_score
 FROM stocks s
 JOIN user_stock_status u ON u.ticker_symbol = s.ticker_symbol
