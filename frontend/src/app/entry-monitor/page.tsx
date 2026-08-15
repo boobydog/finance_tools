@@ -5,6 +5,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import Link from "next/link";
 import { useEntrySignals } from "@/hooks/useStocks";
 import type { EntrySignal } from "@/types";
+import { StatusChip } from "@/components/stocks/StatusChip";
 
 // 有力候補(シグナル数がしきい値以上)の行は文字色を緑にする(通常時が白い部分のみ)。
 // 判定は該当グループ(なければデフォルトグループ)の基準でサーバー側評価済みの値を使う。
@@ -77,6 +78,13 @@ const columns: GridColDef<EntrySignal>[] = [
         {row.sector ?? "-"}
       </Typography>
     ),
+  },
+  {
+    field: "status",
+    headerName: "ステータス",
+    flex: 0.6,
+    minWidth: 100,
+    renderCell: ({ row }) => <StatusChip status={row.status} />,
   },
   {
     field: "currentPrice",
@@ -210,7 +218,8 @@ export default function EntryMonitorPage() {
         </Tooltip>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        候補(候補ステータス)銘柄について、トレンド転換(MA25上抜け)・出来高急増・決算の市場予想超えのシグナルを確認できます。
+        候補・保有中・売却済の銘柄について、トレンド転換(MA25上抜け)・出来高急増・決算の市場予想超えのシグナルを確認できます(除外・未設定の銘柄は対象外)。
+        複数回の買い増しや売却後の再エントリーの判断にも使えるよう、保有中・売却済の銘柄も一覧に含めています。
         判定基準は銘柄が属するスクリーニンググループ(設定画面で編集可能)ごとに異なり、シグナル数がしきい値以上の有力候補の行は緑色で表示されます。
         除外条件(スコア不足・RSI過熱・MA25からの乖離しすぎ・前日比の急騰・上抜け直後など)に該当する銘柄は、シグナル数を満たしていても有力候補になりません(単日の急騰を誤って拾わないための対策です)。
         また、同じグループの損切り判定(分類A)に購入前でも該当する銘柄(上場廃止リスク・監理銘柄指定など)は、購入直後に損切り対象になってしまうため候補から除外されます。分類Bに該当する場合は除外はせず、警告として表示されます。
@@ -222,7 +231,7 @@ export default function EntryMonitorPage() {
         </Box>
       ) : signals?.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          候補銘柄がありません。
+          対象銘柄がありません。
         </Typography>
       ) : (
         <DataGrid
