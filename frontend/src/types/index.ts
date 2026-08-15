@@ -178,6 +178,9 @@ export interface EntrySignal {
   tickerSymbol: string;
   name: string;
   sector: string | null;
+  // 候補(interested)だけでなく、複数回の買い増し・再エントリーの判断用に保有中(holding)・
+  // 売却済(sold)銘柄も対象に含む(除外・未設定は対象外)。
+  status: StockStatus;
   currentPrice: number | null;
   previousClose: number | null;
   ma25: number | null;

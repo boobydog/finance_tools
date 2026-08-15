@@ -100,6 +100,9 @@ class EntrySignal(CamelModel):
     ticker_symbol: str
     name: str
     sector: str | None
+    # 候補(interested)だけでなく、複数回の買い増し・再エントリーの判断用に保有中(holding)・
+    # 売却済(sold)銘柄も対象に含む(除外・未設定は対象外)。
+    status: StockStatus
     current_price: float | None
     previous_close: float | None
     ma25: float | None
