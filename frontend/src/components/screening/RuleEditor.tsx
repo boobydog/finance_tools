@@ -148,9 +148,10 @@ const SECTION_META: Record<
       <SectionDescription
         intro="保有銘柄について、利確すべきかを判定します。"
         bullets={[
-          "分類A(原則禁止): いずれか1つでも該当すれば売却検討と判定します(複数条件はOR)。",
+          "分類A(原則禁止): いずれか1つでも該当すれば売却検討と判定します(複数条件はOR)。目標株価到達・PER過熱に加え、MA25クロスアンダー(is_below_ma25、トレンド反転の機械的シグナル)も条件として登録できます。",
           "分類B・Cは利確判定には使用されません。",
           "下の「保有期間上限」は分類A/B/Cとは別の独立した判定軸で、日数のみで判定します(損益に関わらず強制決済)。",
+          "下の「トレイリングストップ許容下落率」は、保有中の最高値から何%下落したら発動するかの基準です(未入力の場合は取引コスト設定の全体値にフォールバック)。値動きの荒い銘柄には広め、安定した銘柄には狭めが目安です。",
         ]}
       />
     ),
@@ -403,6 +404,8 @@ export function RuleEditor({
   const [holdingPeriodExitDays, setHoldingPeriodExitDays] = useState<
     number | null
   >(group.holdingPeriodExitDays);
+  const [trailingStopAllowancePercent, setTrailingStopAllowancePercent] =
+    useState<number | null>(group.trailingStopAllowancePercent);
 
   const commitGroup = (
     patch: Partial<{
@@ -410,6 +413,7 @@ export function RuleEditor({
       description: string;
       signalCountThreshold: number | null;
       holdingPeriodExitDays: number | null;
+      trailingStopAllowancePercent: number | null;
     }>,
   ) => {
     updateGroup.mutate({
@@ -419,6 +423,7 @@ export function RuleEditor({
         description,
         signalCountThreshold,
         holdingPeriodExitDays,
+        trailingStopAllowancePercent,
         ...patch,
       },
     });
@@ -589,7 +594,11 @@ export function RuleEditor({
                   />
                 </Box>
               ) : purpose === "profit_taking" ? (
-                <Box sx={{ mb: 1.5 }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  sx={{ mb: 1.5, flexWrap: "wrap" }}
+                >
                   <TextField
                     size="small"
                     type="number"
@@ -608,7 +617,28 @@ export function RuleEditor({
                     slotProps={{ htmlInput: { step: 1, min: 0 } }}
                     sx={{ width: 260 }}
                   />
-                </Box>
+                  <TextField
+                    size="small"
+                    type="number"
+                    label="トレイリングストップ許容下落率(%)"
+                    helperText="保有中の最高値から何%下落したら発動するか(未入力なら全体設定を使用)"
+                    value={trailingStopAllowancePercent ?? ""}
+                    onChange={(e) =>
+                      setTrailingStopAllowancePercent(
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
+                    onBlur={() => {
+                      if (
+                        trailingStopAllowancePercent !==
+                        group.trailingStopAllowancePercent
+                      )
+                        commitGroup({});
+                    }}
+                    slotProps={{ htmlInput: { step: 1, min: 0, max: 100 } }}
+                    sx={{ width: 280 }}
+                  />
+                </Stack>
               ) : undefined
             }
           />
