@@ -1,0 +1,224 @@
+@startuml er_diagram
+!define PK(x) <b><color:#b8860b><&key></color> x</b>
+!define FK(x) <color:#4682b4><&link></color> x
+title finance_tools ER図
+
+entity "stocks" as stocks {
+  PK(ticker_symbol) : VARCHAR(10)
+  --
+  name : VARCHAR(255)
+  market_segment : VARCHAR(50)
+  sector : VARCHAR(100)
+  is_nikkei225 : BOOLEAN
+  is_under_supervision : BOOLEAN
+  is_delisting_risk : BOOLEAN
+}
+
+entity "user_stock_status" as user_stock_status {
+  PK(ticker_symbol) : VARCHAR(10)
+  FK(ticker_symbol -> stocks)
+  --
+  status : ENUM
+  purchase_score : DECIMAL(10,4)
+  target_price_auto : DECIMAL(15,2)
+  target_price_manual : DECIMAL(15,2)
+  target_price_at_purchase : DECIMAL(15,2)
+  target_price_auto_logic : ENUM
+  target_price_at_purchase_logic : ENUM
+  highest_price_since_purchase : DECIMAL(15,2)
+}
+
+entity "stock_metrics" as stock_metrics {
+  PK(ticker_symbol) : VARCHAR(10)
+  FK(ticker_symbol -> stocks)
+  --
+  forward_per : DECIMAL(15,4)
+  pbr : DECIMAL(15,4)
+  bps : DECIMAL(15,4)
+  target_mean_price : DECIMAL(15,2)
+  market_cap : BIGINT
+  dividend_yield : DECIMAL(10,4)
+  equity_ratio : DECIMAL(10,4)
+  roe : DECIMAL(10,4)
+  eps_growth : DECIMAL(15,4)
+  operating_profit_yoy : DECIMAL(15,4)
+  revenue_yoy : DECIMAL(15,4)
+  operating_margin : DECIMAL(10,4)
+  operating_cf : BIGINT
+  next_earnings_date : DATE
+  earnings_surprise_percent : DECIMAL(10,4)
+  relative_strength : DECIMAL(10,4)
+  rsi : DECIMAL(10,4)
+  volume_ratio : DECIMAL(10,4)
+  hv : DECIMAL(10,4)
+  ma25 : DECIMAL(15,2)
+  ma25_above_streak_days : INT
+  updated_at : TIMESTAMP
+}
+
+entity "technical_scores" as technical_scores {
+  PK(ticker_symbol) : VARCHAR(10)
+  FK(ticker_symbol -> stocks)
+  --
+  total_score : INT
+  stage2_score : INT
+  rs_score : INT
+  volume_score : INT
+  rsi_score : INT
+  vcp_score : INT
+  macd_score : INT
+  computed_at : TIMESTAMP
+}
+
+entity "daily_stock_data" as daily_stock_data {
+  PK(ticker_symbol) : VARCHAR(10)
+  PK(date) : DATE
+  FK(ticker_symbol -> stocks)
+  --
+  open_price : DECIMAL(15,2)
+  close_price : DECIMAL(15,2)
+  high_price : DECIMAL(15,2)
+  low_price : DECIMAL(15,2)
+  volume : BIGINT
+}
+
+entity "financial_results" as financial_results {
+  PK(ticker_symbol) : VARCHAR(10)
+  PK(fiscal_period) : VARCHAR(20)
+  FK(ticker_symbol -> stocks)
+  --
+  revenue : BIGINT
+  operating_profit : BIGINT
+  eps : DECIMAL(15,2)
+  market_forecast_eps : DECIMAL(15,2)
+  dividend_per_share : DECIMAL(10,2)
+  equity_ratio : DECIMAL(5,2)
+  roe : DECIMAL(5,2)
+  operating_cf : BIGINT
+}
+
+entity "trade_history" as trade_history {
+  PK(trade_id) : BIGINT
+  FK(ticker_symbol -> stocks)
+  FK(screening_group_id -> screening_groups)
+  --
+  action : ENUM('buy','sell')
+  price : DECIMAL(15,2)
+  quantity : INT
+  traded_at : DATETIME
+  memo : TEXT
+  account_type : ENUM('taxable','nisa')
+}
+
+entity "tags" as tags {
+  PK(tag_id) : INT
+  --
+  name : VARCHAR(50) <<UNIQUE>>
+  color : VARCHAR(7)
+}
+
+entity "stock_tags" as stock_tags {
+  PK(ticker_symbol) : VARCHAR(10)
+  PK(tag_id) : INT
+  FK(ticker_symbol -> stocks)
+  FK(tag_id -> tags)
+}
+
+entity "screening_groups" as screening_groups {
+  PK(group_id) : INT
+  --
+  name : VARCHAR(100)
+  description : TEXT
+  is_active : BOOLEAN
+  purpose : ENUM
+  auto_calc_logic_type : ENUM
+  is_default : BOOLEAN
+  candidate_screening_active : BOOLEAN
+  signal_count_threshold : INT
+  holding_period_exit_days : INT
+  trailing_stop_allowance_percent : INT
+}
+
+entity "screening_rules" as screening_rules {
+  PK(rule_id) : INT
+  FK(group_id -> screening_groups)
+  --
+  rule_purpose : ENUM('candidate','entry_timing','loss_cut','profit_taking')
+  category : ENUM('A','B','C')
+  param_key : VARCHAR(100)
+  operator : ENUM('gte','lte','eq')
+  value_mode : ENUM('fixed','hv_multiplier')
+  min_threshold : DECIMAL(15,4)
+  max_threshold : DECIMAL(15,4)
+  rule_metadata : JSON
+}
+
+entity "screening_param_definitions" as screening_param_definitions {
+  PK(param_key) : VARCHAR(100)
+  --
+  label : VARCHAR(100)
+  value_type : ENUM('number','string','boolean')
+  min_value : DECIMAL(15,4)
+  max_value : DECIMAL(15,4)
+  unit : VARCHAR(20)
+  description : VARCHAR(255)
+}
+
+entity "market_indicators" as market_indicators {
+  PK(date) : DATE
+  --
+  fx_usd_jpy : DECIMAL(10,4)
+}
+
+entity "batch_logs" as batch_logs {
+  PK(log_id) : BIGINT
+  --
+  process_name : VARCHAR(100)
+  status : VARCHAR(20)
+  retry_count : INT
+  error_message : TEXT
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "app_settings" as app_settings {
+  PK(setting_key) : VARCHAR(100)
+  --
+  setting_value : VARCHAR(255)
+}
+
+entity "trading_fee_tiers" as trading_fee_tiers {
+  PK(tier_id) : INT
+  --
+  max_trade_value : DECIMAL(15,2)
+  commission : DECIMAL(10,2)
+}
+
+' --- Relationships ---
+stocks ||--o| user_stock_status
+stocks ||--o| stock_metrics
+stocks ||--o| technical_scores
+stocks ||--o{ daily_stock_data
+stocks ||--o{ financial_results
+stocks ||--o{ trade_history
+stocks ||--o{ stock_tags
+tags ||--o{ stock_tags
+
+screening_groups ||--o{ screening_rules
+screening_groups |o--o{ trade_history
+
+' 参照はあるが外部キー制約なし(param_keyは文字列で緩く対応)
+screening_param_definitions .. screening_rules : param_key (no FK)
+
+' FKなし・独立テーブル(参考のため配置のみ)
+market_indicators -[hidden]- batch_logs
+batch_logs -[hidden]- app_settings
+app_settings -[hidden]- trading_fee_tiers
+
+note bottom of screening_groups
+  ⚠ group_id = 6,7,8,12 (小型株/中型株/大型株/デフォルト) のうち
+  デフォルト(35番マイグレーション)以外はアプリ経由で作成された前提。
+  マイグレーションファイル内にINSERT文は存在しない。
+end note
+
+@enduml
