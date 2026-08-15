@@ -71,7 +71,13 @@ export default function StocksPage() {
   const filtered = useMemo(() => {
     if (!stocks) return [];
     return stocks
-      .filter((s) => tab === "all" || s.status === tab)
+      .filter((s) => {
+        if (tab === "all") return true;
+        // 「候補」タブは、複数回の買い増し・再エントリーの判断にも使えるよう、
+        // 保有中・売却済の銘柄も合わせて表示する(「保有中」「売却済」タブとは重複表示になる)。
+        if (tab === "interested") return s.status === "interested" || s.status === "holding" || s.status === "sold";
+        return s.status === tab;
+      })
       .filter((s) => sector === "all" || s.sector === sector)
       .filter((s) => minScore === "all" || (s.screeningScore ?? -Infinity) >= Number(minScore))
       .filter(
