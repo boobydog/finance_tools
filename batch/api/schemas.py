@@ -281,6 +281,8 @@ class ScreeningGroup(CamelModel):
     signal_count_threshold: int | None = None
     # 保有期間の上限(日数)。超えると損益に関わらず強制決済の対象になる(NULLは無効)。
     holding_period_exit_days: int | None = None
+    # トレイリングストップの許容下落率(%)。NULLはapp_settingsの全体設定にフォールバック。
+    trailing_stop_allowance_percent: int | None = None
     rules: list[ScreeningRule] = []
 
 
@@ -289,6 +291,7 @@ class UpsertScreeningGroupRequest(CamelModel):
     description: str | None = None
     signal_count_threshold: int | None = None
     holding_period_exit_days: int | None = None
+    trailing_stop_allowance_percent: int | None = None
 
 
 class UpdateScreeningGroupActiveRequest(CamelModel):

@@ -152,6 +152,7 @@ export const MOCK_SCREENING_GROUPS: ScreeningGroup[] = [
     candidateScreeningActive: true,
     signalCountThreshold: null,
     holdingPeriodExitDays: null,
+    trailingStopAllowancePercent: null,
     rules: [
       { ruleId: 1, rulePurpose: "candidate", category: "A", paramKey: "is_delisting_risk", operator: "eq", valueMode: "fixed", paramValue: 1 },
       { ruleId: 2, rulePurpose: "candidate", category: "B", paramKey: "dividend_per_share_yoy", operator: "lte", valueMode: "fixed", paramValue: 0 },
@@ -167,6 +168,7 @@ export const MOCK_SCREENING_GROUPS: ScreeningGroup[] = [
     candidateScreeningActive: true,
     signalCountThreshold: null,
     holdingPeriodExitDays: null,
+    trailingStopAllowancePercent: null,
     rules: [
       { ruleId: 4, rulePurpose: "candidate", category: "A", paramKey: "is_under_supervision", operator: "eq", valueMode: "fixed", paramValue: 1 },
       { ruleId: 5, rulePurpose: "candidate", category: "B", paramKey: "operating_profit_yoy", operator: "lte", valueMode: "fixed", paramValue: 0 },

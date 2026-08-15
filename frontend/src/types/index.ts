@@ -118,6 +118,8 @@ export interface ScreeningGroup {
   // 保有期間の上限(日数)。超えると損益に関わらず強制決済の対象になる(損切り・利確とは
   // 独立した第3の判定軸で、null は無効)。
   holdingPeriodExitDays: number | null;
+  // トレイリングストップの許容下落率(%)。nullの場合は取引コスト設定の全体設定にフォールバック。
+  trailingStopAllowancePercent: number | null;
   rules: ScreeningRule[];
 }
 
@@ -136,6 +138,7 @@ export interface UpsertScreeningGroupRequest {
   description: string | null;
   signalCountThreshold?: number | null;
   holdingPeriodExitDays?: number | null;
+  trailingStopAllowancePercent?: number | null;
 }
 
 export interface CreateScreeningRuleRequest {

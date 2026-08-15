@@ -400,7 +400,7 @@ def list_profit_taking_signals() -> list[ProfitTakingSignal]:
     利確基準で評価し、なければデフォルトグループの基準にフォールバックする。
     """
     engine = get_engine()
-    allowance_percent = get_trailing_stop_allowance_percent(engine)
+    default_allowance_percent = get_trailing_stop_allowance_percent(engine)
     groups = fetch_active_groups(engine)
     tag_names_by_ticker = fetch_ticker_tag_names(engine)
     lots_by_ticker = _fetch_position_lots_by_ticker(engine)
@@ -411,12 +411,18 @@ def list_profit_taking_signals() -> list[ProfitTakingSignal]:
     for row in rows:
         row = dict(row)
         lots = lots_by_ticker.get(row["ticker_symbol"], [])
+        group = resolve_group(tag_names_by_ticker.get(row["ticker_symbol"], set()), groups)
+        # トレイリングストップの許容下落率はグループ別に設定できる(値動きの荒い小型株は
+        # 広め、安定した大型株は狭めが望ましい)。未設定のグループはapp_settingsの
+        # 全体設定にフォールバックする。
+        allowance_percent = (
+            group.get("trailingStopAllowancePercent") if group else None
+        ) or default_allowance_percent
         trailing_stop_trigger_price = (
             float(row["highest_price_since_purchase"]) * (1 - allowance_percent / 100)
             if row["highest_price_since_purchase"] is not None
             else None
         )
-        group = resolve_group(tag_names_by_ticker.get(row["ticker_symbol"], set()), groups)
         verdict = evaluate_profit_taking(build_profit_taking_row(row, trailing_stop_trigger_price), group)
         net_costs = estimate_net_profit_for_position(
             engine, float(row["current_price"]) if row["current_price"] is not None else None, lots
@@ -573,6 +579,7 @@ def _fetch_screening_groups() -> list[ScreeningGroup]:
             candidate_screening_active=bool(row["candidate_screening_active"]),
             signal_count_threshold=row["signal_count_threshold"],
             holding_period_exit_days=row["holding_period_exit_days"],
+            trailing_stop_allowance_percent=row["trailing_stop_allowance_percent"],
             rules=rules_by_group.get(row["group_id"], []),
         )
         for row in group_rows
@@ -629,6 +636,7 @@ def update_screening_group(
                 "description": body.description,
                 "signal_count_threshold": body.signal_count_threshold,
                 "holding_period_exit_days": body.holding_period_exit_days,
+                "trailing_stop_allowance_percent": body.trailing_stop_allowance_percent,
             },
         )
     _sync_screening_rules_json()
