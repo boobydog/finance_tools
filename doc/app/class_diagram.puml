@@ -1,0 +1,207 @@
+@startuml class_diagram
+title finance_tools バックエンド クラス図(モジュール構成)
+skinparam packageStyle rectangle
+
+note as N1
+  実装はPythonのモジュール関数群(クラスベースOOPではない)。
+  ここでは1モジュール = 1クラス(<<module>>)として、
+  公開関数をメソッドとして表現している。
+  DB操作を伴う関数は "batch/sql/*.sql" をSQLAlchemy Core経由で実行する
+  (SQL方針、詳細は architecture.md 参照)。
+end note
+
+package "api" {
+  class "main.py" as ApiMain <<FastAPI app>> {
+    +38 endpoints (list_stocks, create_trade, list_entry_signals, ...)
+  }
+  class "schemas.py" as ApiSchemas <<Pydantic models>> {
+    +EntrySignal
+    +LossCutSignal
+    +ProfitTakingSignal
+    +ScreeningGroup / ScreeningRule
+    +Stock / TradeHistoryEntry
+    +TechnicalScoreConfig
+    ... (see api_endpoints.md)
+  }
+  ApiMain ..> ApiSchemas : uses
+}
+
+package "scripts.judgment (業務ロジック中核)" {
+  class "screening_engine.py" as ScreeningEngine <<module>> {
+    +evaluate_and_apply(engine): dict
+    +reconcile_inactive_group_candidates(engine): int
+    -_passes_group(row, group): bool
+    -_evaluate_condition(...): bool
+  }
+  class "technical_screener.py" as TechnicalScreener <<module>> {
+    +run_technical_screen(engine, config): list[dict]
+    +persist_scores(engine, records): None
+    +sync_score_tags(engine, records): None
+    +apply_score_candidates(engine, threshold): int
+    +reconcile_stale_score_candidates(engine, threshold): int
+    -_score_stage2 / _score_relative_strength / _score_volume_surge
+    -_score_rsi_zone / _score_vcp_or_high / _score_macd
+  }
+  class "technical_score_settings.py" as TechScoreSettings <<module>> {
+    +get_technical_score_settings(engine): dict
+    +set_technical_score_settings(engine, values): None
+    +build_scoring_config(settings): dict
+  }
+  class "trade_judgment_engine.py" as TradeJudgmentEngine <<module>> {
+    +resolve_group(tag_names, groups): dict | None
+    +evaluate_entry(row, group): dict
+    +evaluate_loss_cut(row, group): dict
+    +evaluate_profit_taking(row, group): dict
+    +evaluate_holding_period_exit(purchase_date, group): dict
+    +build_entry_row / build_loss_cut_row / build_profit_taking_row(row): dict
+  }
+  class "target_price.py" as TargetPrice <<module>> {
+    +resolve_target_price(engine, ticker, base_price): tuple
+    +sync_target_prices(engine, symbols): int
+    +snapshot_target_price_at_purchase(engine, ticker, price): float
+  }
+  class "trading_costs.py" as TradingCosts <<module>> {
+    +get_capital_gains_tax_rate(engine): float
+    +fetch_fee_tiers(engine): list[dict]
+    +calculate_commission(trade_value, tiers): float
+    +estimate_net_profit(...): dict
+    +estimate_net_profit_for_position(engine, price, lots): dict
+    +resolve_position_account_type(lots): str | None
+  }
+  class "screening_config.py" as ScreeningConfig <<module>> {
+    +fetch_param_definitions(engine): list[dict]
+    +fetch_screening_groups_hierarchical(engine): dict
+    +export_screening_rules_json(engine, path): dict
+    +replace_screening_rules_from_data(engine, data): dict
+  }
+
+  TechnicalScreener ..> TechScoreSettings : scoring config
+  TradeJudgmentEngine ..> ScreeningConfig : group/rule lookup
+  ScreeningEngine ..> ScreeningConfig : group/rule lookup
+}
+
+package "scripts.data (外部データ取得)" {
+  class "metrics_fetcher.py" as MetricsFetcher <<module>> {
+    +fetch_fundamentals(symbol): dict
+    +run_fundamentals_fetch(engine, symbols): int
+    +fetch_technical_metrics(engine, symbol, benchmark_df): dict
+    +run_technical_metrics_fetch(engine, symbols): int
+  }
+  class "live_quote.py" as LiveQuote <<module>> {
+    +fetch_live_quote(symbol): dict | None
+    +fetch_live_quotes(symbols): dict
+    +fetch_cached_quote(engine, symbol): dict | None
+    +fetch_cached_quotes(engine, symbols): dict
+  }
+  class "price_history.py" as PriceHistory <<module>> {
+    +aggregate_price_history(rows, interval): list[dict]
+  }
+  class "nikkei225.py" as Nikkei225 <<module>> {
+    +fetch_constituents(): list[dict]
+    +fetch_constituent_symbols(): list[str]
+    +sync_is_nikkei225_flag(engine, symbols): None
+  }
+  class "jpx_importer.py" as JpxImporter <<module>> {
+    +fetch_listed_stocks(): list[dict]
+    +fetch_supervision_status(): list[dict]
+    +import_stocks(engine): dict
+  }
+  class "yfinance_batch.py" as YfinanceBatch <<module>> {
+    +chunked(items, batch_size): generator
+    +fetch_paginated(fetch_page, batch_size): list[dict]
+  }
+  class "stock_fetcher.py" as StockFetcher <<module (legacy CLI)>> {
+    +fetch_realtime(symbols): list[dict]
+    +fetch_info(symbols): list[dict]
+    +fetch_history(symbols, period, interval): list[dict]
+  }
+  class "stock_screener.py" as StockScreener <<module (legacy CLI)>> {
+    +fetch_screened(config_path): list[dict]
+    +fetch_jp_all_stocks(): list[dict]
+  }
+
+  MetricsFetcher ..> TechnicalScreener : reuses _fetch_history (price cache)
+  MetricsFetcher ..> YfinanceBatch
+  JpxImporter ..> YfinanceBatch
+}
+
+package "scripts.infra (共通基盤)" {
+  class "db.py" as Db <<module>> {
+    +get_engine(): Engine
+  }
+  class "sql_runner.py" as SqlRunner <<module>> {
+    +load_sql(filename): str
+    +execute_many(engine, filename, params_list): None
+  }
+  class "batch_logger.py" as BatchLogger <<module>> {
+    +get_next_attempt(engine, process_name, min_interval): int | None
+    +start(engine, process_name, retry_count): int
+    +finish_success(engine, log_id): None
+    +finish_failure(engine, log_id, error): None
+  }
+  class "app_settings.py" as AppSettings <<module>> {
+    +get_int_setting / get_float_setting / get_str_setting(engine, key, default)
+    +set_setting(engine, key, value): None
+  }
+  class "pipeline.py" as Pipeline <<module>> {
+    +refresh_metrics_and_screening(engine): None
+    -_run(engine): None
+  }
+  class "target_symbols.py" as TargetSymbols <<module>> {
+    +get_tracked_ticker_symbols(engine): list[str]
+    +resolve_target_symbols(engine): list[str]
+  }
+  class "exit_signals.py" as ExitSignals <<module>> {
+    +sync_highest_prices(engine): None
+  }
+  class "market_hours.py" as MarketHours <<module>> {
+    +is_tse_open(now): bool
+  }
+  class "csv_exporter.py" as CsvExporter <<module (CLI用)>> {
+    +export_csv(records, filename): Path | None
+    +cleanup_old_csv(retention_days): None
+  }
+
+  Pipeline ..> TargetSymbols
+  Pipeline ..> TechnicalScreener
+  Pipeline ..> MetricsFetcher
+  Pipeline ..> ScreeningEngine
+  Pipeline ..> TargetPrice
+  Pipeline ..> ExitSignals
+  TargetSymbols ..> Nikkei225
+}
+
+ApiMain ..> ScreeningEngine
+ApiMain ..> TechnicalScreener
+ApiMain ..> TechScoreSettings
+ApiMain ..> TradeJudgmentEngine
+ApiMain ..> TargetPrice
+ApiMain ..> TradingCosts
+ApiMain ..> LiveQuote
+ApiMain ..> PriceHistory
+ApiMain ..> Pipeline
+ApiMain ..> ScreeningConfig
+ApiMain ..> BatchLogger
+
+' すべてのDBアクセスモジュールがsql_runner経由でSQLを実行する
+ScreeningEngine ..> SqlRunner
+TechnicalScreener ..> SqlRunner
+TradeJudgmentEngine ..> SqlRunner
+TargetPrice ..> SqlRunner
+TradingCosts ..> SqlRunner
+MetricsFetcher ..> SqlRunner
+LiveQuote ..> SqlRunner
+Nikkei225 ..> SqlRunner
+JpxImporter ..> SqlRunner
+AppSettings ..> SqlRunner
+BatchLogger ..> SqlRunner
+ExitSignals ..> SqlRunner
+TargetSymbols ..> SqlRunner
+
+TechScoreSettings ..> AppSettings
+TradingCosts ..> AppSettings
+ApiMain ..> AppSettings
+ApiMain ..> Db
+Pipeline ..> Db
+
+@enduml
