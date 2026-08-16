@@ -151,7 +151,7 @@ ER図は [`er_diagram.puml`](er_diagram.puml) を参照。
 | カラム | 型 | NULL | 説明 |
 |---|---|---|---|
 | ticker_symbol | VARCHAR(10) | NOT NULL | **PK**、FK → stocks |
-| status | ENUM('interested','holding','sold','excluded') | NULL | ステータス |
+| status | ENUM('interested','holding','sold','excluded','considering') | NULL | ステータス。`considering`(検討)は`interested`(候補)とは独立した手動ステータス |
 | purchase_score | DECIMAL(10,4) | NULL | 購入時点のテクニカルスコア(以後固定) |
 | target_price_auto | DECIMAL(15,2) | NULL | 自動算出のターゲットプライス(現在値ベースで都度再計算) |
 | target_price_manual | DECIMAL(15,2) | NULL | 手動入力のターゲットプライス(設定時は最優先) |
@@ -314,6 +314,25 @@ FKなし。
 | commission | DECIMAL(10,2) | NOT NULL | 片道手数料(円、税込) |
 
 FKなし。
+
+---
+
+## 16a. `market_news` — 銘柄関連ニュース(TDnet適時開示)
+
+TDnet(東証の適時開示情報)から取得した、追跡銘柄の決算短信・自己株買い等の適時開示。`tdnet_client.py`(`sync_news`)が取込元。`news_id`(TDnetの開示ID)をPKとした取込済み台帳を兼ねる(重複取込防止)。
+
+| カラム | 型 | NULL | 説明 |
+|---|---|---|---|
+| news_id | VARCHAR(20) | NOT NULL | **PK**、TDnetの開示ID |
+| ticker_symbol | VARCHAR(10) | NOT NULL | FK → stocks |
+| company_name | VARCHAR(255) | NULL | TDnet上の企業名表記 |
+| title | VARCHAR(500) | NOT NULL | 開示タイトル |
+| url | VARCHAR(500) | NULL | 開示資料(PDF等)へのリンク |
+| published_at | DATETIME | NOT NULL | 適時開示の提出日時 |
+| source | VARCHAR(50) | NOT NULL | 既定'TDnet' |
+| fetched_at | TIMESTAMP | NOT NULL | 自動設定(取込日時) |
+
+**PK**: news_id。**FK**: `ticker_symbol → stocks`。
 
 ---
 

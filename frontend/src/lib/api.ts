@@ -24,17 +24,10 @@ import type {
   UpsertScreeningGroupRequest,
   UpsertTradingFeeTierRequest,
 } from "@/types";
-import { MOCK_NEWS } from "@/lib/mockData";
 
-// FastAPI(batch/api)を叩く実装。NewsAPI連携はまだバッチ側に無いため、
-// fetchNewsのみ暫定でモックデータを返す。
+// FastAPI(batch/api)を叩く実装。
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-const MOCK_LATENCY_MS = 200;
-
-function delay<T>(value: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
-}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -121,11 +114,8 @@ export async function fetchMarketIndicators(): Promise<MarketIndicator[]> {
 }
 
 export async function fetchNews(tickerSymbol?: string): Promise<NewsItem[]> {
-  // NewsAPI連携バッチが未実装のため、ニュースのみ暫定的にモックを返す。
-  const news = tickerSymbol
-    ? MOCK_NEWS.filter((n) => n.relatedTickerSymbols.includes(tickerSymbol))
-    : MOCK_NEWS;
-  return delay(news);
+  const query = tickerSymbol ? `?ticker_symbol=${encodeURIComponent(tickerSymbol)}` : "";
+  return apiFetch<NewsItem[]>(`/api/news${query}`);
 }
 
 export async function fetchScreeningGroups(): Promise<ScreeningGroup[]> {

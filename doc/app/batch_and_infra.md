@@ -22,6 +22,7 @@ argparseサブコマンド形式。`docker compose exec app python main.py <subc
 | `cleanup` | `--days`(既定30) | N日より古いCSV出力を削除 | 手動 |
 | `edinet-backfill` | `--lookback-days`(既定450) | EDINETの書類一覧を指定日数分遡って走査し、追跡対象銘柄の有価証券報告書(経営指標等5期分)を一括取得。初回セットアップ用 | 手動、一度限りの初回バックフィル |
 | `edinet-sync` | — | EDINETの直近5日分を走査し、新規・訂正の有価証券報告書を取り込む。リトライ制御あり | **cron: 1時間おき(実処理は20時間に1回に自己抑制)** |
+| `sync-market-news` | — | TDnet(適時開示情報)から追跡対象銘柄の直近3日分のニュースを取得。リトライ制御あり | **cron: 30分おき(実処理は2時間に1回に自己抑制)** |
 
 ## cron設定
 
@@ -32,6 +33,7 @@ argparseサブコマンド形式。`docker compose exec app python main.py <subc
 0 * * * *    root cd /app && python main.py fetch-fundamentals >> /app/logs/fetch_fundamentals.log 2>&1
 0 */6 * * * root cd /app && python main.py fetch-earnings-day-fundamentals >> /app/logs/fetch_earnings_day_fundamentals.log 2>&1
 0 * * * *    root cd /app && python main.py edinet-sync >> /app/logs/edinet_sync.log 2>&1
+*/30 * * * * root cd /app && python main.py sync-market-news >> /app/logs/market_news_sync.log 2>&1
 ```
 
 **設計上のポイント**: cronのポーリング間隔(5分・1時間・6時間)と、実際の処理実行間隔は別物である。`scripts/batch_logger.py`が`batch_logs`テーブルの実行履歴を見て、指定の最小実行間隔(例: 24時間)に満たなければ何もせず終了する。これにより「cronは頻繁にポーリングしつつ、実処理は適切な頻度に抑える」という設計を実現している。失敗時は5分→30分→1時間の間隔で最大3回リトライする。

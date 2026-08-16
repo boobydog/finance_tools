@@ -12,7 +12,7 @@ export interface Stock {
 // user_stock_status.status は現状 DB enum('interested','holding','sold') のみ。
 // "excluded"(除外)はUI要件で追加されたがDB側は未対応のため、
 // バックエンド接続時にはALTER TABLEでのenum拡張が必要。
-export type StockStatus = "interested" | "holding" | "sold" | "excluded" | null;
+export type StockStatus = "interested" | "holding" | "sold" | "excluded" | "considering" | null;
 
 // ターゲットプライスの算出ロジック。eps_growth: EPS成長率ベース、
 // pbr_normalization: PBR正常化(BPS基準)、analyst_consensus: アナリスト目標株価平均。

@@ -211,6 +211,18 @@ entity "trading_fee_tiers" as trading_fee_tiers {
   commission : DECIMAL(10,2)
 }
 
+entity "market_news" as market_news {
+  PK(news_id) : VARCHAR(20)
+  FK(ticker_symbol -> stocks)
+  --
+  company_name : VARCHAR(255)
+  title : VARCHAR(500)
+  url : VARCHAR(500)
+  published_at : DATETIME
+  source : VARCHAR(50)
+  fetched_at : TIMESTAMP
+}
+
 ' --- Relationships ---
 stocks ||--o| user_stock_status
 stocks ||--o| stock_metrics
@@ -218,6 +230,7 @@ stocks ||--o| technical_scores
 stocks ||--o{ daily_stock_data
 stocks ||--o{ financial_results
 stocks ||--o{ edinet_filings
+stocks ||--o{ market_news
 stocks ||--o{ trade_history
 stocks ||--o{ stock_tags
 tags ||--o{ stock_tags

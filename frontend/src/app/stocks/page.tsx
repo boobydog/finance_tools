@@ -29,6 +29,7 @@ import { classifyTrade } from "@/lib/tradeSignals";
 const TABS: { value: StockStatus | "all"; label: string }[] = [
   { value: "all", label: "全銘柄" },
   { value: "interested", label: "候補" },
+  { value: "considering", label: "検討" },
   { value: "holding", label: "保有中" },
   { value: "sold", label: "売却済" },
   { value: "excluded", label: "除外" },

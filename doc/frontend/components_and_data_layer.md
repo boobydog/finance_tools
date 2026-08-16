@@ -21,7 +21,7 @@
 | `charts/StockPriceChart.tsx` | ローソク足+出来高+移動平均線のチャート。カスタム描画のローソク足形状、MA表示切替の状態はセッションストレージに保持 |
 | `dashboard/BatchLogTable.tsx` | バッチ実行ログのテーブル表示 |
 | `dashboard/NewsList.tsx` | ニュース一覧表示 |
-| `stocks/StatusActions.tsx` | ステータス変更ボタン群(候補/購入/売却/除外) |
+| `stocks/StatusActions.tsx` | ステータス変更ボタン群(候補/検討/購入/売却/除外) |
 | `stocks/StockTagsPanel.tsx` | タグの手動付与/削除(銘柄詳細画面)。スクリーニンググループ名と同じタグを付けると、既にステータスが設定済み(保有中等)で候補スクリーニングの対象外になった銘柄にも、後から特定グループの判定基準を適用できる |
 | `stocks/StatusChip.tsx` | ステータス表示バッジ |
 | `stocks/TradeDialog.tsx` | 売買記録入力ダイアログ(価格・数量・口座種別・根拠グループ・メモ) |

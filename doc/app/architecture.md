@@ -39,9 +39,9 @@ DML/DQL(SELECT/INSERT/UPDATE/DELETE)はすべて`.sql`ファイルとして`batc
 
 ## 4. 外部API呼び出しの制御方針
 
-yfinance・JPX公式サイト・日経公式サイト・EDINET(金融庁)は、非公式または呼び出し回数に制約のある外部データソースである。以下のパターンを徹底する。
+yfinance・JPX公式サイト・日経公式サイト・EDINET(金融庁)・TDnet(東証適時開示、やのしんWEB-API経由)は、非公式または呼び出し回数に制約のある外部データソースである。以下のパターンを徹底する。
 
-- **ローカルキャッシュ優先**: `daily_stock_data`をキャッシュとして使い、2回目以降は差分(前回保存日の翌日以降)のみ取得する(`technical_screener._fetch_history`)。EDINETについても`edinet_filings`台帳で取込済みのdoc_idを記録し、日次スキャンで再取得しない。
+- **ローカルキャッシュ優先**: `daily_stock_data`をキャッシュとして使い、2回目以降は差分(前回保存日の翌日以降)のみ取得する(`technical_screener._fetch_history`)。EDINETについても`edinet_filings`台帳で取込済みのdoc_idを記録し、日次スキャンで再取得しない。TDnetも`market_news.news_id`をPKとしたINSERT IGNOREで、同じ開示の重複取込を防ぐ。
 - **チャンク分割**: 一括取得は`scripts/yfinance_batch.py`の`chunked(items, batch_size=20)`で20件ずつに分割する。
 - **リトライ・実行間隔制御**: `scripts/batch_logger.py`が、cron自体は高頻度(例: 5分おき)で起動しても、実処理は指定した最小間隔(例: 24時間)でしか実行しない仕組みを提供する。失敗時は5分→30分→1時間の間隔で最大3回リトライし、状態は`batch_logs`テーブルに永続化する(コンテナ再起動をまたいでも状態が保たれる)。
 - **リクエスト間隔の明示的な制御**: EDINETは公式なレート制限が非公開のため、`scripts/edinet_client.py`は書類一覧取得・書類ダウンロードそれぞれに固定のsleep間隔(`LIST_REQUEST_INTERVAL_SECONDS`/`DOWNLOAD_REQUEST_INTERVAL_SECONDS`)を設けている。
