@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -37,9 +37,19 @@ const DRAWER_WIDTH = 240;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  // サーバーにはwindow.matchMediaが無くuseMediaQueryは常にfalseを返すため、
+  // hydration直後(mounted=falseの間)はサーバーと同じfalseを使い、mount後に
+  // 実際のビューポート幅で再評価する(hydrationミスマッチを避けるため)。
+  const isMobileQuery = useMediaQuery(theme.breakpoints.down("sm"));
+  const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isMobile = mounted && isMobileQuery;
 
   const drawerContent = (
     <List>

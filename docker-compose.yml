@@ -1,6 +1,11 @@
 services:
   frontend:
     build: ./frontend
+    # 起動コマンド(Dockerfileの既定CMDを上書き)。用途に応じて、使う行のコメントを外し
+    # 他をコメントアウトして切り替える(Dockerfile自体には複数コマンドを書けないため)。
+    # command: pnpm run dev
+    command: pnpm run dev --turbo
+    # command: sh -c "pnpm run build && pnpm run start"
     volumes:
       - ./frontend:/app
       - /app/node_modules

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -46,7 +46,12 @@ const MOBILE_PAGE_SIZE = 25;
 
 export default function StocksPage() {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  // サーバーにはwindow.matchMediaが無くuseMediaQueryは常にfalseを返すため、
+  // hydration直後(mounted=falseの間)はサーバーと同じfalseを使い、mount後に
+  // 実際のビューポート幅で再評価する(hydrationミスマッチを避けるため)。
+  const isMobileQuery = useMediaQuery(theme.breakpoints.down("sm"));
+  const [mounted, setMounted] = useState(false);
+  const isMobile = mounted && isMobileQuery;
   const { data: stocks, isLoading } = useStocks();
   const { data: entrySignals } = useEntrySignals();
   const { data: lossCutSignals } = useLossCutSignals();
@@ -63,6 +68,10 @@ export default function StocksPage() {
     page: 0,
     pageSize: 25,
   });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const sectors = useMemo(
     () => Array.from(new Set((stocks ?? []).map((s) => s.sector).filter(Boolean))) as string[],
