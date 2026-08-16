@@ -2,7 +2,7 @@
 
 FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レスポンスは`CamelModel`(snake_case⇔camelCase自動変換)を経由し、フロントエンドの型定義と1対1対応させる。CORSは環境変数`CORS_ALLOW_ORIGINS`で許可オリジンを設定する。
 
-合計40エンドポイント。
+合計41エンドポイント。
 
 ## 銘柄
 
@@ -10,7 +10,7 @@ FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レス
 |---|---|---|---|---|
 | GET | `/api/stocks` | 全銘柄一覧(ステータス/タグ/スコア/ターゲットプライス/直近終値付き)。呼び出しごとにバックグラウンドで指標再計算をトリガー | — | `list[Stock]` |
 | GET | `/api/stocks/{ticker_symbol}` | 銘柄詳細 | — | `Stock`(404 if not found) |
-| PUT | `/api/stocks/{ticker_symbol}/status` | ステータスを手動変更(候補/保有中/売却済/除外) | `UpdateStockStatusRequest` | `Stock` |
+| PUT | `/api/stocks/{ticker_symbol}/status` | ステータスを手動変更(候補/検討/保有中/売却済/除外) | `UpdateStockStatusRequest` | `Stock` |
 | PUT | `/api/stocks/{ticker_symbol}/target-price` | 手動ターゲットプライスの設定/解除 | `UpdateTargetPriceRequest` | `Stock` |
 | POST | `/api/stocks/{ticker_symbol}/trades` | 売買記録の登録。複数ロット買い増し・部分売却時のステータス遷移(holding/sold)・購入時スナップショットを管理 | `CreateTradeRequest` | `Stock` |
 | POST | `/api/stocks/{ticker_symbol}/tags` | タグを手動で付与(既存タグはtagId、新規タグ名はtagNameで指定)。スクリーニンググループ名と同じタグを付けると、次回の判定エンジン評価からそのグループの基準が適用される。候補スクリーニングは既にステータスが設定された銘柄を再評価しないため、保有中銘柄に別グループの基準を後から適用したい場合に使う | `AttachStockTagRequest` | `Stock` |
@@ -34,6 +34,7 @@ FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レス
 | GET | `/api/batch-logs` | バッチ実行ログ履歴 | `list[BatchLog]` |
 | GET | `/api/market-indicators` | 市場指標(米ドル/円等)の日次推移 | `list[MarketIndicator]` |
 | GET | `/api/tags` | 全タグ一覧 | `list[Tag]` |
+| GET | `/api/news` | 銘柄関連ニュース(TDnet適時開示)。`?ticker_symbol=`で絞り込み、最新100件 | `list[NewsItem]` |
 
 ## 設定
 
@@ -87,7 +88,7 @@ FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レス
 ### 型エイリアス(Literal)
 
 ```python
-StockStatus = Literal["interested", "holding", "sold", "excluded"]
+StockStatus = Literal["interested", "holding", "sold", "excluded", "considering"]
 TargetPriceLogic = Literal["eps_growth", "pbr_normalization", "analyst_consensus"]
 EffectiveTargetPriceLogic = Literal["manual", *TargetPriceLogic]
 AccountType = Literal["taxable", "nisa"]

@@ -15,6 +15,7 @@ type ActionDef =
 
 const ACTIONS: ActionDef[] = [
   { kind: "direct", status: "interested", label: "候補" },
+  { kind: "direct", status: "considering", label: "検討" },
   { kind: "trade", status: "holding", action: "buy", label: "購入" },
   { kind: "trade", status: "sold", action: "sell", label: "売却" },
   { kind: "direct", status: "excluded", label: "除外" },

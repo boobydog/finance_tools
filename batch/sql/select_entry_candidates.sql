@@ -1,5 +1,6 @@
--- 買入タイミング判定画面向け: 候補(interested)銘柄に加え、複数回の買い増し・再エントリーの
--- 判断にも使えるよう保有中(holding)・売却済(sold)銘柄もエントリーシグナル関連指標を返す
+-- 買入タイミング判定画面向け: 候補(interested)・検討(considering、ユーザーが購入前提で
+-- 手動マークした銘柄)に加え、複数回の買い増し・再エントリーの判断にも使えるよう
+-- 保有中(holding)・売却済(sold)銘柄もエントリーシグナル関連指標を返す
 -- (除外(excluded)・未設定は対象外)。
 SELECT
     s.ticker_symbol,
@@ -45,5 +46,5 @@ LEFT JOIN (
         GROUP BY d3.ticker_symbol
     ) d2 ON d1.ticker_symbol = d2.ticker_symbol AND d1.date = d2.prev_date
 ) prev ON prev.ticker_symbol = s.ticker_symbol
-WHERE u.status IN ('interested', 'holding', 'sold')
+WHERE u.status IN ('interested', 'holding', 'sold', 'considering')
 ORDER BY t.total_score DESC;

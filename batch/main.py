@@ -26,6 +26,7 @@ from scripts.sql_runner import load_sql
 from scripts.stock_fetcher import fetch_history, fetch_info, fetch_realtime
 from scripts.stock_screener import fetch_jp_all_stocks, fetch_screened, load_screen_config
 from scripts.target_price import sync_target_prices
+from scripts.tdnet_client import sync_news
 from scripts.target_symbols import get_tracked_ticker_symbols, resolve_target_symbols
 from scripts.technical_screener import (
     DEFAULT_CANDIDATE_SCORE_THRESHOLD,
@@ -55,6 +56,12 @@ EDINET_SYNC_LOOKBACK_DAYS = 5
 # 3月決算企業が大半を占め、有価証券報告書は期末から3ヶ月以内に提出されるため、
 # 直近15ヶ月分をスキャンすればほぼ全ての追跡銘柄の最新書類を発見できる。
 EDINET_BACKFILL_DEFAULT_LOOKBACK_DAYS = 450
+
+MARKET_NEWS_SYNC_PROCESS_NAME = "market_news_sync"
+MARKET_NEWS_SYNC_MIN_RUN_INTERVAL = timedelta(hours=2)
+# 適時開示は当日中に複数件出ることもあるため、他バッチより短い間隔で巡回する。
+# 直近数日分を毎回取り直すが、news_idで冪等に取込むため再取得のコストは軽い。
+MARKET_NEWS_SYNC_LOOKBACK_DAYS = 3
 
 SCREENING_RULES_JSON_PATH = os.environ.get(
     "SCREENING_RULES_JSON_PATH", "./data/screening/screening_rules.json"
@@ -144,6 +151,11 @@ def parse_args(argv=None):
     sub.add_parser(
         "edinet-sync",
         help="EDINETの直近数日分の書類一覧を走査し、新規・訂正の有価証券報告書を取り込む(cron用)",
+    )
+
+    sub.add_parser(
+        "sync-market-news",
+        help="TDnetの適時開示情報から対象銘柄のニュースを取得(cron用)",
     )
 
     return parser.parse_args(argv)
@@ -237,6 +249,28 @@ def run_edinet_sync_batch() -> None:
     logger.info("edinet-sync completed: %s", result)
 
 
+def run_market_news_sync_batch() -> None:
+    """TDnetの直近数日分を、リトライ状況を見ながら巡回する(適時開示ニュースの取込)。"""
+    engine = get_engine()
+    retry_count = batch_logger.get_next_attempt(
+        engine, MARKET_NEWS_SYNC_PROCESS_NAME, MARKET_NEWS_SYNC_MIN_RUN_INTERVAL
+    )
+    if retry_count is None:
+        return
+
+    log_id = batch_logger.start(engine, MARKET_NEWS_SYNC_PROCESS_NAME, retry_count)
+    try:
+        symbols = resolve_target_symbols(engine)
+        result = sync_news(engine, symbols, MARKET_NEWS_SYNC_LOOKBACK_DAYS)
+    except Exception as exc:
+        logger.exception("market_news_sync failed (retry_count=%d)", retry_count)
+        batch_logger.finish_failure(engine, log_id, str(exc))
+        return
+
+    batch_logger.finish_success(engine, log_id)
+    logger.info("sync-market-news completed: %s", result)
+
+
 def main(argv=None) -> None:
     """指定されたコマンド(realtime/history/screen/cleanup)を実行する。"""
     args = parse_args(argv)
@@ -300,6 +334,8 @@ def main(argv=None) -> None:
         logger.info("edinet-backfill completed: %s", result)
     elif args.command == "edinet-sync":
         run_edinet_sync_batch()
+    elif args.command == "sync-market-news":
+        run_market_news_sync_batch()
 
 
 if __name__ == "__main__":

@@ -18,3 +18,8 @@ PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 # ここでは頻度高く(1時間おき)叩くだけでよい。直近数日分を毎回スキャンし直すため
 # 取りこぼしにも強い(取込済みのdoc_idはedinet_filings台帳でスキップされる)。
 0 * * * * root cd /app && python main.py edinet-sync >> /app/logs/edinet_sync.log 2>&1
+
+# 適時開示は当日中に複数件出ることもあるため、他バッチより頻度高く(30分おき)巡回する。
+# 実行要否はbatch_logsの状態を見てscripts.batch_logger側で判定するため(実処理は2時間に
+# 1回に自己抑制)、ここでは頻度高く叩くだけでよい。
+*/30 * * * * root cd /app && python main.py sync-market-news >> /app/logs/market_news_sync.log 2>&1

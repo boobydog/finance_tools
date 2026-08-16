@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-StockStatus = Literal["interested", "holding", "sold", "excluded"]
+StockStatus = Literal["interested", "holding", "sold", "excluded", "considering"]
 TargetPriceLogic = Literal["eps_growth", "pbr_normalization", "analyst_consensus"]
 EffectiveTargetPriceLogic = Literal["manual", "eps_growth", "pbr_normalization", "analyst_consensus"]
 # taxable: 特定口座(源泉徴収あり)/一般口座。nisa: NISA口座(譲渡益非課税・手数料無料として扱う)。
@@ -28,6 +28,15 @@ class Tag(CamelModel):
     tag_id: int
     name: str
     color: str | None = None
+
+
+class NewsItem(CamelModel):
+    id: str
+    title: str
+    url: str | None
+    source: str
+    published_at: datetime
+    related_ticker_symbols: list[str]
 
 
 class TechnicalScoreThreshold(CamelModel):

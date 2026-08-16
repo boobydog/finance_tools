@@ -25,6 +25,7 @@ from api.schemas import (
     LiveQuote,
     LossCutSignal,
     MarketIndicator,
+    NewsItem,
     PricePoint,
     ProfitTakingSignal,
     ScreeningGroup,
@@ -506,6 +507,27 @@ def list_tags() -> list[Tag]:
     with get_engine().connect() as conn:
         rows = conn.execute(text(load_sql("select_tags.sql"))).mappings().all()
     return [Tag(**row) for row in rows]
+
+
+@app.get("/api/news", response_model=list[NewsItem])
+def list_news(ticker_symbol: str | None = None) -> list[NewsItem]:
+    with get_engine().connect() as conn:
+        rows = (
+            conn.execute(text(load_sql("select_market_news.sql")), {"ticker_symbol": ticker_symbol})
+            .mappings()
+            .all()
+        )
+    return [
+        NewsItem(
+            id=row["news_id"],
+            title=row["title"],
+            url=row["url"],
+            source=row["source"],
+            published_at=row["published_at"],
+            related_ticker_symbols=[row["ticker_symbol"]],
+        )
+        for row in rows
+    ]
 
 
 @app.get("/api/settings/technical-score-threshold", response_model=TechnicalScoreThreshold)
