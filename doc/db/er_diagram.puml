@@ -45,6 +45,11 @@ entity "stock_metrics" as stock_metrics {
   revenue_yoy : DECIMAL(15,4)
   operating_margin : DECIMAL(10,4)
   operating_cf : BIGINT
+  free_cash_flow : BIGINT
+  revenue_cagr_5y : DECIMAL(10,4)
+  net_income_cagr_5y : DECIMAL(10,4)
+  consecutive_revenue_growth_years : INT
+  consecutive_profit_years : INT
   next_earnings_date : DATE
   earnings_surprise_percent : DECIMAL(10,4)
   relative_strength : DECIMAL(10,4)
@@ -89,12 +94,24 @@ entity "financial_results" as financial_results {
   --
   revenue : BIGINT
   operating_profit : BIGINT
+  net_income : BIGINT
   eps : DECIMAL(15,2)
   market_forecast_eps : DECIMAL(15,2)
   dividend_per_share : DECIMAL(10,2)
   equity_ratio : DECIMAL(5,2)
   roe : DECIMAL(5,2)
   operating_cf : BIGINT
+}
+
+entity "edinet_filings" as edinet_filings {
+  PK(doc_id) : VARCHAR(16)
+  FK(ticker_symbol -> stocks)
+  --
+  edinet_code : VARCHAR(10)
+  doc_type_code : VARCHAR(4)
+  period_end : DATE
+  submitted_at : DATETIME
+  ingested_at : TIMESTAMP
 }
 
 entity "trade_history" as trade_history {
@@ -200,6 +217,7 @@ stocks ||--o| stock_metrics
 stocks ||--o| technical_scores
 stocks ||--o{ daily_stock_data
 stocks ||--o{ financial_results
+stocks ||--o{ edinet_filings
 stocks ||--o{ trade_history
 stocks ||--o{ stock_tags
 tags ||--o{ stock_tags
@@ -214,6 +232,12 @@ screening_param_definitions .. screening_rules : param_key (no FK)
 market_indicators -[hidden]- batch_logs
 batch_logs -[hidden]- app_settings
 app_settings -[hidden]- trading_fee_tiers
+
+note bottom of financial_results
+  EDINETから取得した直近5期分の「経営指標等の推移」を格納。
+  operating_profit/market_forecast_eps/dividend_per_shareは未使用(NULL)。
+  10年分への拡張は未対応(5年前の書類の発見手段が別途必要)。
+end note
 
 note bottom of screening_groups
   ⚠ group_id = 6,7,8,12 (小型株/中型株/大型株/デフォルト) のうち

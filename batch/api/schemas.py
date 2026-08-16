@@ -230,6 +230,14 @@ class UpdateStockStatusRequest(CamelModel):
     status: StockStatus
 
 
+class AttachStockTagRequest(CamelModel):
+    # 既存タグを付与する場合はtagIdを指定する。tagNameのみ指定した場合、
+    # 同名タグが無ければ新規作成してから付与する(スクリーニンググループ名タグを
+    # 保有中銘柄へ手動で付け直すケースを想定)。
+    tag_id: int | None = None
+    tag_name: str | None = None
+
+
 class BatchLog(CamelModel):
     log_id: int
     process_name: str

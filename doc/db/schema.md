@@ -109,6 +109,7 @@ ER図は [`er_diagram.puml`](er_diagram.puml) を参照。
 | revenue_yoy | DECIMAL(15,4) | NULL | 売上高前期比(%) |
 | operating_margin | DECIMAL(10,4) | NULL | 売上高営業利益率(%) |
 | operating_cf | BIGINT | NULL | 営業CF(百万円) |
+| free_cash_flow | BIGINT | NULL | フリーキャッシュフロー(百万円、yfinance算出値をそのまま採用。営業CFからCapExを自前で減算しない) |
 | next_earnings_date | DATE | NULL | 次回決算発表予定日 |
 | earnings_surprise_percent | DECIMAL(10,4) | NULL | 直近決算の市場予想乖離率(%) |
 | relative_strength | DECIMAL(10,4) | NULL | 相対強度(RS、日経225比) |
@@ -203,20 +204,43 @@ ER図は [`er_diagram.puml`](er_diagram.puml) を参照。
 
 ## 10. `financial_results` — 決算期別財務データ
 
+EDINET(金融庁の開示システム)の有価証券報告書から取得する、直近5期分の「経営指標等の推移」を格納する。`edinet_client.py`(`sync_filings`)が取込元。
+
 | カラム | 型 | NULL | 説明 |
 |---|---|---|---|
 | ticker_symbol | VARCHAR(10) | NOT NULL | **PK(複合)** part1、FK → stocks |
-| fiscal_period | VARCHAR(20) | NOT NULL | **PK(複合)** part2、例: "2024Q1" |
+| fiscal_period | VARCHAR(20) | NOT NULL | **PK(複合)** part2、形式: "FY2026"(期末日の年)。有価証券報告書は年次のためQ表記は使わない |
 | revenue | BIGINT | NULL | 売上高(百万円) |
-| operating_profit | BIGINT | NULL | 営業利益(百万円) |
-| eps | DECIMAL(15,2) | NULL | 1株当たり利益 |
-| market_forecast_eps | DECIMAL(15,2) | NULL | 市場予想EPS |
-| dividend_per_share | DECIMAL(10,2) | NULL | 1株当たり配当 |
+| operating_profit | BIGINT | NULL | 営業利益(百万円)。**未使用**(経営指標等サマリーには5期分の推移が含まれないため、このパイプラインでは取得しない) |
+| net_income | BIGINT | NULL | 当期純利益(百万円) |
+| eps | DECIMAL(15,2) | NULL | 1株当たり当期純利益 |
+| market_forecast_eps | DECIMAL(15,2) | NULL | 市場予想EPS。**未使用** |
+| dividend_per_share | DECIMAL(10,2) | NULL | 1株当たり配当。**未使用** |
 | equity_ratio | DECIMAL(5,2) | NULL | 自己資本比率(%) |
 | roe | DECIMAL(5,2) | NULL | ROE(%) |
 | operating_cf | BIGINT | NULL | 営業CF(百万円) |
 
 **PK**: (ticker_symbol, fiscal_period)。**FK**: `ticker_symbol → stocks`。
+
+> 現状のEDINET連携は直近5年分のみ(最新の有価証券報告書1件から取得できる範囲)。10年分への拡張は、5年前の書類を追加取得する発見手段が別途必要なため未対応。
+
+---
+
+## 10a. `edinet_filings` — EDINET取込済み書類の台帳
+
+同じdoc_idの再取込を防ぎつつ、訂正有価証券報告書(元の書類と異なるdoc_idで提出される)を「未取込の新しいdoc_id」として検知するための台帳テーブル。`edinet-sync`(日次cron)・`edinet-backfill`(手動)の両方がこのテーブルを参照・更新する。
+
+| カラム | 型 | NULL | 説明 |
+|---|---|---|---|
+| doc_id | VARCHAR(16) | NOT NULL | **PK**、EDINET書類管理番号 |
+| ticker_symbol | VARCHAR(10) | NOT NULL | FK → stocks |
+| edinet_code | VARCHAR(10) | NOT NULL | EDINETコード |
+| doc_type_code | VARCHAR(4) | NOT NULL | 120=有価証券報告書、130=訂正有価証券報告書 |
+| period_end | DATE | NULL | 当期の期末日 |
+| submitted_at | DATETIME | NULL | EDINETへの提出日時 |
+| ingested_at | TIMESTAMP | NOT NULL | 自動設定(取込日時) |
+
+**PK**: doc_id。**FK**: `ticker_symbol → stocks`。
 
 ---
 

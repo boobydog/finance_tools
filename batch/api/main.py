@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from api.schemas import (
+    AttachStockTagRequest,
     BatchLog,
     CapitalGainsTaxRate,
     CreateScreeningRuleRequest,
@@ -59,6 +60,7 @@ from scripts.screening_config import (
     fetch_param_definitions,
     replace_screening_rules_from_data,
 )
+from scripts.screening_engine import CANDIDATE_TAG_COLOR
 from scripts.sql_runner import load_sql
 from scripts.target_price import snapshot_target_price_at_purchase
 from scripts.technical_score_settings import get_technical_score_settings, set_technical_score_settings
@@ -196,6 +198,43 @@ def update_target_price(ticker_symbol: str, body: UpdateTargetPriceRequest) -> S
             text(load_sql("update_target_price_manual.sql")),
             {"ticker_symbol": ticker_symbol, "target_price_manual": body.target_price_manual},
         )
+    return get_stock(ticker_symbol)
+
+
+@app.post("/api/stocks/{ticker_symbol}/tags", response_model=Stock)
+def attach_stock_tag(ticker_symbol: str, body: AttachStockTagRequest) -> Stock:
+    """銘柄にタグを手動で付与する。
+
+    スクリーニンググループ名と同じタグを付けると、次回の判定エンジン評価から
+    そのグループの基準が適用される(グループ解決はタグの一致で行うため)。
+    候補スクリーニングは既にステータスが設定された銘柄(保有中・除外等)を
+    再評価しないため、保有中銘柄に別グループの基準を後から適用したい場合は
+    この手動付与を使う。
+    """
+    if body.tag_id is None and not body.tag_name:
+        raise HTTPException(status_code=400, detail="tagId または tagName のいずれかを指定してください")
+
+    engine = get_engine()
+    with engine.begin() as conn:
+        tag_id = body.tag_id
+        if tag_id is None:
+            existing = conn.execute(text(load_sql("select_tag_by_name.sql")), {"name": body.tag_name}).mappings().first()
+            if existing:
+                tag_id = existing["tag_id"]
+            else:
+                result = conn.execute(
+                    text(load_sql("insert_tag.sql")), {"name": body.tag_name, "color": CANDIDATE_TAG_COLOR}
+                )
+                tag_id = result.lastrowid
+        conn.execute(text(load_sql("insert_stock_tag.sql")), {"ticker_symbol": ticker_symbol, "tag_id": tag_id})
+    return get_stock(ticker_symbol)
+
+
+@app.delete("/api/stocks/{ticker_symbol}/tags/{tag_id}", response_model=Stock)
+def detach_stock_tag(ticker_symbol: str, tag_id: int) -> Stock:
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text(load_sql("delete_stock_tag.sql")), {"ticker_symbol": ticker_symbol, "tag_id": tag_id})
     return get_stock(ticker_symbol)
 
 

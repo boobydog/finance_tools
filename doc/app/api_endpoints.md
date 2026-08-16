@@ -2,7 +2,7 @@
 
 FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レスポンスは`CamelModel`(snake_case⇔camelCase自動変換)を経由し、フロントエンドの型定義と1対1対応させる。CORSは環境変数`CORS_ALLOW_ORIGINS`で許可オリジンを設定する。
 
-合計38エンドポイント。
+合計40エンドポイント。
 
 ## 銘柄
 
@@ -13,6 +13,8 @@ FastAPIアプリケーション(`batch/api/main.py`)。全リクエスト/レス
 | PUT | `/api/stocks/{ticker_symbol}/status` | ステータスを手動変更(候補/保有中/売却済/除外) | `UpdateStockStatusRequest` | `Stock` |
 | PUT | `/api/stocks/{ticker_symbol}/target-price` | 手動ターゲットプライスの設定/解除 | `UpdateTargetPriceRequest` | `Stock` |
 | POST | `/api/stocks/{ticker_symbol}/trades` | 売買記録の登録。複数ロット買い増し・部分売却時のステータス遷移(holding/sold)・購入時スナップショットを管理 | `CreateTradeRequest` | `Stock` |
+| POST | `/api/stocks/{ticker_symbol}/tags` | タグを手動で付与(既存タグはtagId、新規タグ名はtagNameで指定)。スクリーニンググループ名と同じタグを付けると、次回の判定エンジン評価からそのグループの基準が適用される。候補スクリーニングは既にステータスが設定された銘柄を再評価しないため、保有中銘柄に別グループの基準を後から適用したい場合に使う | `AttachStockTagRequest` | `Stock` |
+| DELETE | `/api/stocks/{ticker_symbol}/tags/{tag_id}` | タグを手動で削除 | — | `Stock` |
 | GET | `/api/stocks/{ticker_symbol}/price-history` | 日足/週足/月足の株価履歴 | query: `interval` | `list[PricePoint]` |
 | GET | `/api/stocks/{ticker_symbol}/live-quote` | リアルタイム気配値(取引時間外はキャッシュ) | — | `LiveQuote`(502 on failure) |
 | GET | `/api/live-quotes` | 画面表示中銘柄の一括気配値(最大50件) | query: `symbols`(CSV) | `list[LiveQuote]` |

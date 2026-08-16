@@ -360,8 +360,8 @@ function TradingCostSettingsPanel() {
 }
 
 function ScreeningRulesPanel() {
-  const { data: groups, isLoading } = useScreeningGroups();
-  const { data: paramDefinitions } = useScreeningParamDefinitions();
+  const { data: groups, isLoading: groupsLoading } = useScreeningGroups();
+  const { data: paramDefinitions, isLoading: paramDefinitionsLoading } = useScreeningParamDefinitions();
   const createGroup = useCreateScreeningGroup();
   const exportRules = useExportScreeningRulesMutation();
   const importRules = useImportScreeningRules();
@@ -433,7 +433,7 @@ function ScreeningRulesPanel() {
         分類A(原則禁止)・分類B(理由なき場合回避)・分類C(条件次第)は、単純なAND/OR/NOTの指定機能ではありません。同じ分類内の複数条件は「いずれか1つでも該当すれば成立」というOR判定です。分類同士をどう組み合わせて最終判定にするかは、候補スクリーニング/買入タイミング/損切り判定/利確判定という用途ごとに異なる決め打ちのロジックになっています(詳細は各セクションの説明を参照してください)。
       </Alert>
 
-      {isLoading ? (
+      {groupsLoading || paramDefinitionsLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
           <CircularProgress />
         </Box>

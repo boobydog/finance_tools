@@ -60,6 +60,8 @@ services:
       DB_NAME: finance_tools
       DB_PASSWORD_FILE: /run/secrets/mysql_password
       SCREENING_RULES_JSON_PATH: /app/data/screening/screening_rules.json
+      # EDINET(edinet-backfill/edinet-sync)用。.envから読み込む(gitignore対象)。
+      EDINET_API_KEY: ${EDINET_API_KEY}
     secrets:
       - mysql_password
     working_dir: /app

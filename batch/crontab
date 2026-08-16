@@ -12,3 +12,9 @@ PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # 決算発表日・その翌日にあたる銘柄だけを個別に更新する(数時間おき)。
 0 */6 * * * root cd /app && python main.py fetch-earnings-day-fundamentals >> /app/logs/fetch_earnings_day_fundamentals.log 2>&1
+
+# EDINETの有価証券報告書(新規・訂正)は1日1回の巡回で十分。
+# 実行要否はbatch_logsの状態を見てscripts.batch_logger側で判定するため、
+# ここでは頻度高く(1時間おき)叩くだけでよい。直近数日分を毎回スキャンし直すため
+# 取りこぼしにも強い(取込済みのdoc_idはedinet_filings台帳でスキップされる)。
+0 * * * * root cd /app && python main.py edinet-sync >> /app/logs/edinet_sync.log 2>&1
