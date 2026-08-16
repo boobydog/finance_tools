@@ -13,6 +13,14 @@ SELECT
     m.operating_margin,
     m.revenue_yoy,
     m.operating_cf,
+    m.free_cash_flow,
+    -- PEGレシオ(派生値): eps_growthが0以下だと除算が無意味(符号反転・ゼロ除算)になるため、
+    -- その場合はNULL(判定不能)として扱う。
+    CASE WHEN m.eps_growth > 0 THEN m.forward_per / m.eps_growth ELSE NULL END AS peg_ratio,
+    m.revenue_cagr_5y,
+    m.net_income_cagr_5y,
+    m.consecutive_revenue_growth_years,
+    m.consecutive_profit_years,
     m.relative_strength,
     m.rsi,
     m.volume_ratio,

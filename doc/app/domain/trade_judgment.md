@@ -50,6 +50,17 @@
 
 買入シグナル数しきい値: 全グループ共通で2件(3件中、MA25上抜け・出来高急増・決算サプライズのうち2つ以上)。
 
+### 参考: バリュエーション重視グループ向けの派生値
+
+小型株/中型株/大型株/デフォルトはモメンタム系の条件(MA25上抜け・出来高倍率等)を使うが、割安さ(バリュエーション)を重視するグループでは、代わりに以下の派生値を分類Cの条件として使うことができる。
+
+| 派生値 | 計算式 | 用途 |
+|---|---|---|
+| peg_ratio | forward_per ÷ eps_growth | 成長率に対する割安さ。`eps_growth`が0以下ならNULL(判定不能) |
+| pbr_roe_ratio | pbr ÷ (roe ÷ 100) | 収益性(ROE)に対する割安さ。PBR単体の絶対閾値は高ROE企業ほど正当化される水準が高くなる(会計上PBR=PER×ROE)ため、ROEで正規化する。`forward_per`(予想ベース)と`roe`(実績ベース)は対象期間が異なるため、単純なPERの言い換えにはならない(将来の業績期待が織り込まれる)。`roe`が0以下ならNULL(判定不能) |
+
+いずれも`build_entry_row`(`trade_judgment_engine.py`)内でPythonにより計算する(DBには保存しない)。
+
 ---
 
 ## 2. 損切り判定
@@ -160,15 +171,24 @@ is_below_ma25(MA25割れ)              = 現在値 < MA25
 - DBテーブル: `screening_groups`, `screening_rules`(`rule_purpose IN ('entry_timing','loss_cut','profit_taking')`), `stock_metrics`, `technical_scores`, `user_stock_status`, `trade_history`
 - モジュール: `scripts/trade_judgment_engine.py`
 - API: `GET /api/entry-signals`, `GET /api/loss-cut-signals`, `GET /api/profit-taking-signals`(詳細は [`../api_endpoints.md`](../api_endpoints.md))
+
 ## 参考: 判定に使用する主な項目一覧
 
 | param_key | 意味 | 単位 | 主な使用箇所 |
 |---|---|---|---|
-| roe | ROE(自己資本利益率) | % | 候補 |
+| roe | ROE(自己資本利益率) | % | 候補、買入タイミング |
 | equity_ratio | 自己資本比率 | % | 候補 |
 | revenue_yoy | 売上高前期比 | % | 候補 |
 | operating_margin | 売上高営業利益率 | % | 候補 |
 | market_cap | 時価総額 | 百万円 | 候補 |
+| peg_ratio | PEGレシオ(派生値) | 倍 | 候補、買入タイミング |
+| pbr | PBR | 倍 | 買入タイミング |
+| pbr_roe_ratio | PBR÷ROE(派生値) | - | 買入タイミング |
+| free_cash_flow | フリーキャッシュフロー | 百万円 | 候補 |
+| revenue_cagr_5y | 売上高5期CAGR(EDINET) | % | 候補 |
+| net_income_cagr_5y | 当期純利益5期CAGR(EDINET) | % | 候補 |
+| consecutive_revenue_growth_years | 売上高成長の連続年数(EDINET) | 年 | 候補 |
+| consecutive_profit_years | 黒字の連続年数(EDINET) | 年 | 候補 |
 | is_above_ma25 | MA25上抜け(派生値) | bool | 買入タイミング |
 | volume_ratio | 出来高倍率(20日平均比) | 倍 | 買入タイミング |
 | earnings_surprise_percent | 決算サプライズ(市場予想乖離率) | % | 買入タイミング |
@@ -185,6 +205,6 @@ is_below_ma25(MA25割れ)              = 現在値 < MA25
 | score_diff | 購入時からのスコア変化(派生値) | pt | 損切り |
 | hv | ヒストリカルボラティリティ(HV) | % | 損切り(HV倍率モードの基準) |
 | achievement_percent | ターゲットプライス達成度(派生値) | % | 利確 |
-| forward_per | PER(予想) | 倍 | 利確 |
+| forward_per | PER(予想) | 倍 | 利確、買入タイミング |
 | is_trailing_stop_triggered | トレイリングストップ発動(派生値) | bool | 利確 |
 | is_below_ma25 | MA25割れ(派生値) | bool | 利確 |

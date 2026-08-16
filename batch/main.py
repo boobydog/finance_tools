@@ -15,6 +15,7 @@ from sqlalchemy import text
 from scripts import batch_logger
 from scripts.csv_exporter import CSV_RETENTION_DAYS, cleanup_old_csv, export_csv
 from scripts.db import get_engine
+from scripts.edinet_client import sync_filings
 from scripts.jpx_importer import import_stocks
 from scripts.legacy_screen_config import import_legacy_screen_config
 from scripts.metrics_fetcher import run_fundamentals_fetch, run_metrics_fetch
@@ -45,6 +46,15 @@ FETCH_FUNDAMENTALS_MIN_RUN_INTERVAL = timedelta(hours=24)
 
 FETCH_EARNINGS_DAY_FUNDAMENTALS_PROCESS_NAME = "fetch_earnings_day_fundamentals"
 FETCH_EARNINGS_DAY_FUNDAMENTALS_MIN_RUN_INTERVAL = timedelta(hours=6)
+
+EDINET_SYNC_PROCESS_NAME = "edinet_sync"
+EDINET_SYNC_MIN_RUN_INTERVAL = timedelta(hours=20)
+# 週末・祝日や前回実行の取りこぼしに備え、直近数日分を毎回スキャンし直す
+# (取込済みのdoc_idはedinet_filings台帳でスキップされるため、再スキャンのコストは軽い)。
+EDINET_SYNC_LOOKBACK_DAYS = 5
+# 3月決算企業が大半を占め、有価証券報告書は期末から3ヶ月以内に提出されるため、
+# 直近15ヶ月分をスキャンすればほぼ全ての追跡銘柄の最新書類を発見できる。
+EDINET_BACKFILL_DEFAULT_LOOKBACK_DAYS = 450
 
 SCREENING_RULES_JSON_PATH = os.environ.get(
     "SCREENING_RULES_JSON_PATH", "./data/screening/screening_rules.json"
@@ -120,6 +130,22 @@ def parse_args(argv=None):
     cleanup_parser = sub.add_parser("cleanup", help="保管期間(既定30日)を過ぎたCSVを削除")
     cleanup_parser.add_argument("--days", type=int, default=CSV_RETENTION_DAYS, help="保管日数")
 
+    backfill_parser = sub.add_parser(
+        "edinet-backfill",
+        help="EDINETから対象銘柄の有価証券報告書(経営指標等5期分)を一括取得(手動実行用)",
+    )
+    backfill_parser.add_argument(
+        "--lookback-days",
+        type=int,
+        default=EDINET_BACKFILL_DEFAULT_LOOKBACK_DAYS,
+        help=f"何日前まで書類一覧を遡って走査するか(既定{EDINET_BACKFILL_DEFAULT_LOOKBACK_DAYS}日)",
+    )
+
+    sub.add_parser(
+        "edinet-sync",
+        help="EDINETの直近数日分の書類一覧を走査し、新規・訂正の有価証券報告書を取り込む(cron用)",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -191,6 +217,26 @@ def run_earnings_day_fundamentals_fetch_batch() -> None:
     logger.info("fetch-earnings-day-fundamentals completed: %d symbols saved", saved)
 
 
+def run_edinet_sync_batch() -> None:
+    """EDINETの直近数日分を、リトライ状況を見ながら日次で巡回する(新規・訂正の取込)。"""
+    engine = get_engine()
+    retry_count = batch_logger.get_next_attempt(engine, EDINET_SYNC_PROCESS_NAME, EDINET_SYNC_MIN_RUN_INTERVAL)
+    if retry_count is None:
+        return
+
+    log_id = batch_logger.start(engine, EDINET_SYNC_PROCESS_NAME, retry_count)
+    try:
+        symbols = resolve_target_symbols(engine)
+        result = sync_filings(engine, symbols, EDINET_SYNC_LOOKBACK_DAYS)
+    except Exception as exc:
+        logger.exception("edinet_sync failed (retry_count=%d)", retry_count)
+        batch_logger.finish_failure(engine, log_id, str(exc))
+        return
+
+    batch_logger.finish_success(engine, log_id)
+    logger.info("edinet-sync completed: %s", result)
+
+
 def main(argv=None) -> None:
     """指定されたコマンド(realtime/history/screen/cleanup)を実行する。"""
     args = parse_args(argv)
@@ -248,6 +294,12 @@ def main(argv=None) -> None:
         logger.info("import-legacy-screen-config completed: %s", result)
     elif args.command == "cleanup":
         cleanup_old_csv(args.days)
+    elif args.command == "edinet-backfill":
+        symbols = resolve_target_symbols(get_engine())
+        result = sync_filings(get_engine(), symbols, args.lookback_days)
+        logger.info("edinet-backfill completed: %s", result)
+    elif args.command == "edinet-sync":
+        run_edinet_sync_batch()
 
 
 if __name__ == "__main__":

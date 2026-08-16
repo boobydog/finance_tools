@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  attachStockTag,
   createTrade,
   deleteTrade,
+  detachStockTag,
   fetchEntrySignals,
   fetchLossCutSignals,
   fetchProfitTakingSignals,
   fetchStock,
   fetchStocks,
+  fetchTags,
   updateStockStatus,
 } from "@/lib/api";
 import type { CreateTradeRequest, StockStatus, StockWithStatus } from "@/types";
@@ -76,6 +79,37 @@ export function useCreateTrade() {
       queryClient.invalidateQueries({ queryKey: stocksQueryKey });
       queryClient.invalidateQueries({ queryKey: stockQueryKey(tickerSymbol) });
       queryClient.invalidateQueries({ queryKey: ["tradeHistory"] });
+    },
+  });
+}
+
+export function useTags() {
+  return useQuery({ queryKey: ["tags"], queryFn: fetchTags });
+}
+
+export function useAttachStockTag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tickerSymbol, tagId, tagName }: { tickerSymbol: string; tagId?: number; tagName?: string }) =>
+      attachStockTag(tickerSymbol, { tagId, tagName }),
+    onSuccess: (_updatedStock, { tickerSymbol }) => {
+      queryClient.invalidateQueries({ queryKey: stocksQueryKey });
+      queryClient.invalidateQueries({ queryKey: stockQueryKey(tickerSymbol) });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
+    },
+  });
+}
+
+export function useDetachStockTag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tickerSymbol, tagId }: { tickerSymbol: string; tagId: number }) =>
+      detachStockTag(tickerSymbol, tagId),
+    onSuccess: (_updatedStock, { tickerSymbol }) => {
+      queryClient.invalidateQueries({ queryKey: stocksQueryKey });
+      queryClient.invalidateQueries({ queryKey: stockQueryKey(tickerSymbol) });
     },
   });
 }

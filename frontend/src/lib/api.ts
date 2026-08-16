@@ -16,6 +16,7 @@ import type {
   ScreeningRulesExport,
   StockStatus,
   StockWithStatus,
+  Tag,
   TechnicalScoreConfig,
   TechnicalScoreThreshold,
   TradeHistoryEntry,
@@ -84,6 +85,30 @@ export async function updateStockStatus(
   return apiFetch<StockWithStatus>(`/api/stocks/${encodeURIComponent(tickerSymbol)}/status`, {
     method: "PUT",
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function fetchTags(): Promise<Tag[]> {
+  return apiFetch<Tag[]>("/api/tags");
+}
+
+// スクリーニンググループ名と同じタグを付けると、次回の判定エンジン評価からそのグループの
+// 基準が適用される(グループ解決はタグの一致で行うため)。候補スクリーニングは既に
+// ステータスが設定された銘柄を再評価しないため、保有中銘柄に別グループの基準を
+// 後から適用したい場合はこれを使う。
+export async function attachStockTag(
+  tickerSymbol: string,
+  body: { tagId?: number; tagName?: string }
+): Promise<StockWithStatus> {
+  return apiFetch<StockWithStatus>(`/api/stocks/${encodeURIComponent(tickerSymbol)}/tags`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function detachStockTag(tickerSymbol: string, tagId: number): Promise<StockWithStatus> {
+  return apiFetch<StockWithStatus>(`/api/stocks/${encodeURIComponent(tickerSymbol)}/tags/${tagId}`, {
+    method: "DELETE",
   });
 }
 

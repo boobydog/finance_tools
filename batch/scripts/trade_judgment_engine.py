@@ -233,6 +233,21 @@ def build_entry_row(row: dict) -> dict:
     daily_change_percent = (
         None if current_price is None or not previous_close else (current_price - previous_close) / previous_close * 100
     )
+    # PEGレシオ(派生値): 候補スクリーニングと同じ計算式・ガード条件。
+    # バフェット/リンチ流など、モメンタムではなくバリュエーションで買入タイミングを
+    # 判定するグループ向け(小型株/中型株/大型株/デフォルトは参照しない)。
+    forward_per = row.get("forward_per")
+    eps_growth = row.get("eps_growth")
+    peg_ratio = forward_per / eps_growth if forward_per is not None and eps_growth is not None and eps_growth > 0 else None
+    # PBR÷ROE(派生値): PBR単体の絶対閾値は、高ROE企業ほど正当化されるPBR水準が
+    # 高くなる(会計上はPBR=PER×ROE)ため、収益性を無視した絶対基準では高品質株が
+    # 軒並み「割高」判定されてしまう。ROEで正規化することで、収益性に見合った
+    # バリュエーションかどうかを測る(バフェット流など、質の高さを重視するが
+    # モメンタムは見ないグループ向け)。forward_perは予想ベース・roeは実績ベースで
+    # 時点がずれるため、PERの単純な言い換えにはならない。
+    pbr = row.get("pbr")
+    roe = row.get("roe")
+    pbr_roe_ratio = pbr / (roe / 100) if pbr is not None and roe is not None and roe > 0 else None
     return {
         "is_above_ma25": is_above_ma25,
         "volume_ratio": row.get("volume_ratio"),
@@ -248,6 +263,10 @@ def build_entry_row(row: dict) -> dict:
         "is_under_supervision": row.get("is_under_supervision"),
         "operating_profit_yoy": row.get("operating_profit_yoy"),
         "eps_growth": row.get("eps_growth"),
+        "forward_per": forward_per,
+        "pbr": pbr,
+        "peg_ratio": peg_ratio,
+        "pbr_roe_ratio": pbr_roe_ratio,
     }
 
 

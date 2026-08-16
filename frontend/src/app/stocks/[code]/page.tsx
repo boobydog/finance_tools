@@ -26,6 +26,7 @@ import { useNews } from "@/hooks/useDashboard";
 import { StockPriceChart } from "@/components/charts/StockPriceChart";
 import { StatusActions } from "@/components/stocks/StatusActions";
 import { StatusChip } from "@/components/stocks/StatusChip";
+import { StockTagsPanel } from "@/components/stocks/StockTagsPanel";
 import { TradeHistoryPanel } from "@/components/stocks/TradeHistoryPanel";
 import { ExitJudgmentDetail } from "@/components/stocks/ExitJudgmentDetail";
 import { priceColor } from "@/lib/theme";
@@ -221,6 +222,13 @@ export default function StockDetailPage() {
           currentStatus={stock.status}
           currentPrice={liveQuote?.currentPrice ?? stock.latestClose}
         />
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+          タグ
+        </Typography>
+        <StockTagsPanel tickerSymbol={stock.tickerSymbol} tags={stock.tags} />
       </Paper>
 
       {stock.status === "holding" && (lossCut || profitTaking) && (

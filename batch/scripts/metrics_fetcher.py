@@ -110,6 +110,10 @@ def fetch_fundamentals(symbol: str) -> dict:
         logger.warning("Failed to fetch income statement for %s", symbol, exc_info=True)
 
     operating_cf = info.get("operatingCashflow")
+    # yfinanceが算出済みのフリーキャッシュフローをそのまま採用する(営業CF-CapExを自前で
+    # 計算しない)。CapExの符号表記(マイナス表記)を自前で扱うとFCFの符号を誤って反転させる
+    # バグを生みやすいため、既に符号が正しく確定済みのinfo["freeCashflow"]を使う。
+    free_cash_flow = info.get("freeCashflow")
     market_cap = info.get("marketCap")
 
     return {
@@ -128,6 +132,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         "operating_margin": operating_margin,
         "revenue_yoy": _percent(info.get("revenueGrowth")),
         "operating_cf": round(operating_cf / 1_000_000) if operating_cf is not None else None,
+        "free_cash_flow": round(free_cash_flow / 1_000_000) if free_cash_flow is not None else None,
         "next_earnings_date": _fetch_next_earnings_date(ticker),
         "earnings_surprise_percent": _fetch_earnings_surprise_percent(ticker),
     }

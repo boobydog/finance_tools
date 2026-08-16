@@ -472,7 +472,6 @@ export function RuleEditor({
             variant="body2"
             color="text.secondary"
             sx={{ flex: 1, minWidth: 0 }}
-            noWrap
           >
             {group.description}
           </Typography>

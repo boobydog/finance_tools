@@ -18,6 +18,9 @@ SELECT
     m.hv,
     m.operating_profit_yoy,
     m.eps_growth,
+    m.forward_per,
+    m.pbr,
+    m.roe,
     t.total_score AS screening_score
 FROM stocks s
 JOIN user_stock_status u ON u.ticker_symbol = s.ticker_symbol

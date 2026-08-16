@@ -20,6 +20,8 @@ argparseサブコマンド形式。`docker compose exec app python main.py <subc
 | `run-screening-engine` | — | `screening_groups`/`rules`を未設定銘柄に適用 | 手動 |
 | `import-legacy-screen-config` | `config`(JSON), `--name`(必須) | 旧形式スクリーニングJSONを新グループとして移行 | 手動、一度限りの移行作業 |
 | `cleanup` | `--days`(既定30) | N日より古いCSV出力を削除 | 手動 |
+| `edinet-backfill` | `--lookback-days`(既定450) | EDINETの書類一覧を指定日数分遡って走査し、追跡対象銘柄の有価証券報告書(経営指標等5期分)を一括取得。初回セットアップ用 | 手動、一度限りの初回バックフィル |
+| `edinet-sync` | — | EDINETの直近5日分を走査し、新規・訂正の有価証券報告書を取り込む。リトライ制御あり | **cron: 1時間おき(実処理は20時間に1回に自己抑制)** |
 
 ## cron設定
 
@@ -29,6 +31,7 @@ argparseサブコマンド形式。`docker compose exec app python main.py <subc
 */5 * * * * root cd /app && python main.py jpx-import >> /app/logs/jpx_import.log 2>&1
 0 * * * *    root cd /app && python main.py fetch-fundamentals >> /app/logs/fetch_fundamentals.log 2>&1
 0 */6 * * * root cd /app && python main.py fetch-earnings-day-fundamentals >> /app/logs/fetch_earnings_day_fundamentals.log 2>&1
+0 * * * *    root cd /app && python main.py edinet-sync >> /app/logs/edinet_sync.log 2>&1
 ```
 
 **設計上のポイント**: cronのポーリング間隔(5分・1時間・6時間)と、実際の処理実行間隔は別物である。`scripts/batch_logger.py`が`batch_logs`テーブルの実行履歴を見て、指定の最小実行間隔(例: 24時間)に満たなければ何もせず終了する。これにより「cronは頻繁にポーリングしつつ、実処理は適切な頻度に抑える」という設計を実現している。失敗時は5分→30分→1時間の間隔で最大3回リトライする。
@@ -51,6 +54,7 @@ argparseサブコマンド形式。`docker compose exec app python main.py <subc
 **環境変数(主要なもの)**:
 - DB接続: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `DB_PASSWORD`または`DB_PASSWORD_FILE`(Docker secret経由)
 - API: `CORS_ALLOW_ORIGINS`, `SCREENING_RULES_JSON_PATH`
+- `app`のみ: `EDINET_API_KEY`(EDINET APIキー、`.env`から読み込み。`edinet-backfill`/`edinet-sync`で使用)
 - フロントエンド: `NEXT_PUBLIC_API_BASE_URL`, `ENABLE_AUTH`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
 
 **シークレット**: `mysql_root_password`, `mysql_password` — ファイルベース(`mysql/secrets/*.txt`)で管理し、環境変数に直書きしない。

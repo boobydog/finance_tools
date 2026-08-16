@@ -1,10 +1,10 @@
 INSERT INTO stock_metrics (
     ticker_symbol, forward_per, pbr, bps, target_mean_price, market_cap, dividend_yield, equity_ratio, roe,
-    eps_growth, operating_profit_yoy, operating_margin, revenue_yoy, operating_cf,
+    eps_growth, operating_profit_yoy, operating_margin, revenue_yoy, operating_cf, free_cash_flow,
     next_earnings_date, earnings_surprise_percent
 ) VALUES (
     :ticker_symbol, :forward_per, :pbr, :bps, :target_mean_price, :market_cap, :dividend_yield, :equity_ratio, :roe,
-    :eps_growth, :operating_profit_yoy, :operating_margin, :revenue_yoy, :operating_cf,
+    :eps_growth, :operating_profit_yoy, :operating_margin, :revenue_yoy, :operating_cf, :free_cash_flow,
     :next_earnings_date, :earnings_surprise_percent
 )
 ON DUPLICATE KEY UPDATE
@@ -21,5 +21,6 @@ ON DUPLICATE KEY UPDATE
     operating_margin = VALUES(operating_margin),
     revenue_yoy = VALUES(revenue_yoy),
     operating_cf = VALUES(operating_cf),
+    free_cash_flow = VALUES(free_cash_flow),
     next_earnings_date = VALUES(next_earnings_date),
     earnings_surprise_percent = VALUES(earnings_surprise_percent);
